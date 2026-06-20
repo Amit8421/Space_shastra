@@ -120,6 +120,30 @@ npm run build
 npm start
 ```
 
+## Web Deployment
+
+This project is deployed on Vercel with PostgreSQL hosted on Supabase.
+
+Required Vercel environment variables:
+
+```bash
+DATABASE_URL="postgresql://..."
+ADMIN_PASSWORD="change-this-password"
+AUTH_SECRET="generate-a-long-random-secret"
+```
+
+Keep `.env`, `.env.local`, database exports, logs, and generated build folders out of GitHub. The live business data stays in Supabase; GitHub stores the application source, assets, Prisma schema, and deployment configuration.
+
+For the fastest and safest workflow, connect this GitHub repository to the existing Vercel project and deploy from the `main` branch. After that, future updates only need:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push
+```
+
+Vercel will automatically build and deploy from GitHub using its build cache.
+
 ## Database Management
 
 View and manage database with Prisma Studio:

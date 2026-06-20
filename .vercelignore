@@ -4,3 +4,8 @@
 .next
 node_modules
 database-export.json
+logs
+*.log
+.next-dev.*
+.tmp_*
+*.tsbuildinfo
