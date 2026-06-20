@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top, rgba(37, 66, 100, 0.10), transparent 32%),
+    linear-gradient(180deg, #f6f8fc 0%, #eef2f8 100%);
+  color: #1d3146;
+}

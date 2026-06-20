@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Client {
+  id           String        @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  country      String?
+  notes        String?
+  status       String        @default("active")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  balance      Float         @default(0)
+  invoices     Invoice[]
+  projects     Project[]
+  quotations   Quotation[]
+  transactions Transaction[]
+
+  @@map("clients")
+}
+
+model Vendor {
+  id             String          @id @default(cuid())
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?
+  country        String?
+  category       String?
+  notes          String?
+  status         String          @default("active")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  balance        Float           @default(0)
+  purchases      Purchase[]
+  transactions   Transaction[]
+  vendorAccounts VendorAccount[]
+
+  @@map("vendors")
+}
+
+model VendorAccount {
+  id             String               @id @default(cuid())
+  vendorId       String
+  projectId      String
+  openingBalance Float                @default(0)
+  currentBalance Float                @default(0)
+  status         String               @default("active")
+  notes          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  entries        VendorAccountEntry[]
+  furnitureItems VendorAccountFurnitureItem[]
+  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor         Vendor               @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, projectId])
+  @@map("vendor_accounts")
+}
+
+model VendorAccountEntry {
+  id              String        @id @default(cuid())
+  vendorAccountId String
+  type            String
+  amount          Float
+  description     String
+  date            DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_account_entries")
+}
+
+model Project {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  clientId       String
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?
+  country        String?
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String          @default("active")
+  budget         Float?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  invoices       Invoice[]
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  purchases      Purchase[]
+  quotations     Quotation[]
+  transactions   Transaction[]
+  vendorAccounts VendorAccount[]
+
+  @@map("projects")
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  invoiceNo String        @unique
+  clientId  String
+  projectId String
+  issueDate DateTime      @default(now())
+  dueDate   DateTime?
+  amount    Float
+  status    String        @default("pending")
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  items     InvoiceItem[]
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments  Payment[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float
+  unitPrice   Float
+  total       Float
+  createdAt   DateTime @default(now())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Quotation {
+  id                  String          @id @default(cuid())
+  quotationNo         String          @unique
+  clientId            String
+  projectId           String
+  issueDate           DateTime        @default(now())
+  dueDate             DateTime?
+  amount              Float
+  status              String          @default("draft")
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  executionFeePercent Float           @default(0)
+  items               QuotationItem[]
+  vendorFurnitureItems VendorAccountFurnitureItem[]
+  client              Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project             Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  description String
+  quantity    Float
+  total       Float
+  createdAt   DateTime  @default(now())
+  area        String
+  category    String
+  areaSqFt    Float?
+  lengthCm    Float?
+  rate        Float?
+  vendorFurnitureItems VendorAccountFurnitureItem[]
+  widthCm     Float?
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_items")
+}
+
+model VendorAccountFurnitureItem {
+  id              String        @id @default(cuid())
+  vendorAccountId String
+  quotationId     String?
+  quotationItemId String?
+  area            String
+  category        String
+  description     String
+  quantity        Float
+  lengthCm        Float?
+  widthCm         Float?
+  areaSqFt        Float?
+  quotationRate   Float?
+  vendorRate      Float         @default(0)
+  vendorTotal     Float         @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+  quotation       Quotation?    @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  quotationItem   QuotationItem? @relation(fields: [quotationItemId], references: [id], onDelete: SetNull)
+
+  @@unique([vendorAccountId, quotationItemId])
+  @@map("vendor_account_furniture_items")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  amount      Float
+  method      String
+  paymentDate DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String
+  vendorId    String?
+  projectId   String?
+  amount      Float
+  description String
+  date        DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  project     Project? @relation(fields: [projectId], references: [id])
+  vendor      Vendor?  @relation(fields: [vendorId], references: [id])
+
+  @@map("transactions")
+}
+
+model Purchase {
+  id           String    @id @default(cuid())
+  vendorId     String
+  projectId    String
+  purchaseNo   String    @unique
+  items        String
+  amount       Float
+  status       String    @default("pending")
+  purchaseDate DateTime  @default(now())
+  dueDate      DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor       Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("purchases")
+}

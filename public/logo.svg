@@ -1,0 +1,40 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGold" x1="32" y1="26" x2="142" y2="124" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6D992"/>
+      <stop offset="0.52" stop-color="#D9A84F"/>
+      <stop offset="1" stop-color="#B5792C"/>
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M38 84L90 32L142 84"
+    stroke="url(#brandGold)"
+    stroke-width="8.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M52 94C58 104 69 110 81 110C91 110 99 106 106 99L90 80L74 99C67 106 59 110 49 110C39 110 31 106 25 98"
+    stroke="url(#brandGold)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M76 84L90 70L104 84"
+    stroke="url(#brandGold)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path d="M84 65L90 59L96 65L90 71L84 65Z" fill="url(#brandGold)"/>
+  <path d="M90 70V98" stroke="url(#brandGold)" stroke-width="7" stroke-linecap="round"/>
+
+  <rect x="80.5" y="98" width="19" height="19" rx="2.5" fill="url(#brandGold)"/>
+  <path d="M90 98V117" stroke="#14243A" stroke-width="2.2"/>
+  <path d="M80.5 107.5H99.5" stroke="#14243A" stroke-width="2.2"/>
+</svg>

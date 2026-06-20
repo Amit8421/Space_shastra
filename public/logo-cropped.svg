@@ -1,0 +1,38 @@
+<svg width="1000" height="700" viewBox="0 0 1000 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1000" y2="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2B1F1F"/>
+      <stop offset="1" stop-color="#1E2027"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="170" y1="90" x2="830" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5D67A"/>
+      <stop offset="0.45" stop-color="#E4B651"/>
+      <stop offset="1" stop-color="#F3D273"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="700" rx="28" fill="url(#bg)"/>
+
+  <path d="M280 330L500 110L720 330" stroke="url(#gold)" stroke-width="26" stroke-linecap="square"/>
+  <path d="M340 385V330L445 225" stroke="url(#gold)" stroke-width="26" stroke-linecap="square"/>
+  <path d="M660 385V330L555 225" stroke="url(#gold)" stroke-width="26" stroke-linecap="square"/>
+
+  <path d="M526 205C565 205 603 220 628 245L584 287C570 273 550 265 530 265C491 265 462 294 462 333C462 374 491 403 532 403C572 403 602 373 602 333C602 311 594 292 580 278L618 236C651 267 670 308 670 352C670 444 603 509 512 509C421 509 354 444 354 353C354 264 437 205 526 205Z" fill="url(#gold)"/>
+  <path d="M515 170L552 206L515 243L478 206L515 170Z" fill="url(#gold)"/>
+
+  <rect x="493" y="327" width="24" height="24" fill="url(#gold)"/>
+  <rect x="528" y="327" width="24" height="24" fill="url(#gold)"/>
+  <rect x="493" y="362" width="24" height="24" fill="url(#gold)"/>
+  <rect x="528" y="362" width="24" height="24" fill="url(#gold)"/>
+
+  <path d="M210 440C304 398 403 379 500 379C597 379 696 398 790 440" stroke="url(#gold)" stroke-width="10" stroke-linecap="round"/>
+
+  <text x="500" y="560" text-anchor="middle" fill="url(#gold)" font-size="98" font-family="Segoe UI, Arial, sans-serif" font-weight="300" letter-spacing="1">
+    Space Shashtra
+  </text>
+  <text x="500" y="640" text-anchor="middle" fill="url(#gold)" font-size="42" font-family="Segoe UI, Arial, sans-serif" font-weight="500" letter-spacing="3">
+    DESIGN WITH STYLE
+  </text>
+  <path d="M195 625H300" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M700 625H805" stroke="url(#gold)" stroke-width="4" stroke-linecap="round"/>
+</svg>

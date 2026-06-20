@@ -1,0 +1,6 @@
+.env
+.env.local
+.runtime
+.next
+node_modules
+database-export.json
