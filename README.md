@@ -144,6 +144,15 @@ git push
 
 Vercel will automatically build and deploy from GitHub using its build cache.
 
+## Architecture And Workflow Diagrams
+
+Use these documents for technical review, feature planning, and competitor-style enhancement analysis:
+
+- [System Diagram](docs/system-diagram.md)
+- [Architecture Diagram](docs/architecture-diagram.md)
+- [Workflow Diagram](docs/workflow-diagram.md)
+- [Feature Analysis Prompt](docs/feature-analysis-prompt.md)
+
 ## Database Management
 
 View and manage database with Prisma Studio:
