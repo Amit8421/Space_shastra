@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { normalizeTextFields } from '@/lib/text-format'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
@@ -139,3 +139,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+

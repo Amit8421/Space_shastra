@@ -14,15 +14,26 @@ const decimalString = z.union([z.string(), z.number()]).transform((value, contex
 const nonNegativeMoney = decimalString.refine((value) => Number(value) >= 0, 'Amount cannot be negative.')
 
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  firm: z.string().trim().toLowerCase().min(2).max(80),
+  username: z.string().trim().toLowerCase().min(2).max(80),
   password: z.string().min(8).max(200),
 })
 
 export const userSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  firmId: z.string().optional(),
+  username: z.string().trim().toLowerCase().min(2).max(80),
+  email: z.string().trim().toLowerCase().email().optional().or(z.literal('')),
   name: requiredText,
   password: z.string().min(10).max(200),
   role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']),
+})
+
+export const firmSchema = z.object({
+  name: requiredText,
+  slug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9-]+$/, 'Use only lowercase letters, numbers, and hyphens.'),
+  adminUsername: z.string().trim().toLowerCase().min(2).max(80),
+  adminName: requiredText.default('Administrator'),
+  adminPassword: z.string().min(10).max(200).optional(),
 })
 
 export const invoiceItemSchema = z.object({

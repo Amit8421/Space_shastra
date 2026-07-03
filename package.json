@@ -4,12 +4,12 @@
   "description": "Interior design business management application",
   "scripts": {
     "dev": "next dev",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && prisma generate --schema prisma/tenant.prisma",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && prisma generate --schema prisma/tenant.prisma",
     "db:export": "node scripts/export-data.js",
     "db:import": "node scripts/import-data.js",
     "studio": "prisma studio"

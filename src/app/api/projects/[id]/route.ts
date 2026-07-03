@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { normalizeTextFields } from '@/lib/text-format'
 
 export async function PUT(
@@ -33,3 +33,4 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 })
   }
 }
+

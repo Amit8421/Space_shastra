@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { normalizeTextFields } from '@/lib/text-format'
 
 export async function GET(_request: NextRequest) {
@@ -25,3 +25,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create vendor' }, { status: 500 })
   }
 }
+

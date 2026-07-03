@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 
 const getQuotationGrandTotal = (quotation: { amount?: unknown }) => Number(quotation.amount || 0)
 
@@ -171,3 +171,4 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch project account report' }, { status: 500 })
   }
 }
+

@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import LogoutButton from '@/components/LogoutButton'
+import { getSessionPayloadFromCookies } from '@/lib/tenant-db'
 import '../styles/globals.css'
 
 const navLinkClass =
   'inline-flex h-11 items-center justify-center whitespace-nowrap rounded-full border border-[#536c8d] bg-white/10 px-4 text-sm font-medium leading-none text-[#f6f8fb] transition hover:border-[#d3b06e] hover:bg-white/16 hover:text-[#f4e5c6]'
 
 export const metadata: Metadata = {
-  title: 'Space Shastra Interiors',
-  description: 'Manage clients, vendors, projects, invoices, quotations, and transactions for Space Shastra Interiors',
+  title: 'InteriorOps Suite',
+  description: 'Multi-firm interior management solution for clients, vendors, projects, invoices, quotations, and transactions',
 }
 
 export default function RootLayout({
@@ -16,6 +17,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const session = getSessionPayloadFromCookies()
+  const firmName = session?.firmName || 'InteriorOps Suite'
+  const subtitle = session ? 'Interior Design Studio' : 'Interior Management Solution'
+
   return (
     <html lang="en">
       <body className="bg-[linear-gradient(180deg,#f6f8fc_0%,#eef2f8_100%)] text-slate-900">
@@ -26,7 +31,7 @@ export default function RootLayout({
                 <div className="mx-auto flex h-[120px] w-full max-w-[220px] items-center justify-center overflow-hidden rounded-[22px] border border-[#d7b36c]/45 bg-[#1d2330] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:h-[138px] lg:h-[160px] lg:max-w-none">
                   <Image
                     src="/dashboard-logo.png"
-                    alt="Space Shastra logo"
+                    alt={`${firmName} logo`}
                     width={1120}
                     height={768}
                     priority
@@ -34,9 +39,9 @@ export default function RootLayout({
                   />
                 </div>
                 <div className="min-w-0 self-center text-center sm:text-left">
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-[#c3cfdf] sm:text-[12px] sm:tracking-[0.5em]">Interior Design Studio</p>
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-[#c3cfdf] sm:text-[12px] sm:tracking-[0.5em]">{subtitle}</p>
                   <h1 className="mt-3 max-w-full break-words font-serif text-[2rem] font-bold leading-[1.05] tracking-[0.01em] text-[#f4e5c6] sm:text-[2.35rem] md:text-[2.85rem] xl:text-[3.25rem]">
-                    Space Shastra Interiors
+                    {firmName}
                   </h1>
                   <p className="mt-3 text-[1.05rem] font-semibold tracking-[0.05em] text-[#eef4fb] sm:text-[1.22rem] md:text-[1.5rem]">
                     Design with Style

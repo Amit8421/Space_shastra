@@ -6,7 +6,8 @@ import { FormEvent, useState } from 'react'
 export default function LoginForm() {
   const searchParams = useSearchParams()
   const nextPath = searchParams.get('next') || '/'
-  const [email, setEmail] = useState('admin@spaceshastra.local')
+  const [firm, setFirm] = useState('space-shastra')
+  const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,7 +21,7 @@ export default function LoginForm() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ firm, username, password }),
       })
       const data = await response.json()
 
@@ -40,12 +41,24 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#29496c]">Email</label>
+        <label htmlFor="firm" className="mb-2 block text-sm font-semibold text-[#29496c]">Firm code</label>
         <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          id="firm"
+          type="text"
+          value={firm}
+          onChange={(event) => setFirm(event.target.value)}
+          required
+          autoComplete="organization"
+          className="w-full rounded-lg border border-[#b7cade] px-4 py-3 outline-none transition focus:border-[#37658f] focus:ring-2 focus:ring-[#d7e9f6]"
+        />
+      </div>
+      <div>
+        <label htmlFor="username" className="mb-2 block text-sm font-semibold text-[#29496c]">Username</label>
+        <input
+          id="username"
+          type="text"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
           required
           autoComplete="username"
           className="w-full rounded-lg border border-[#b7cade] px-4 py-3 outline-none transition focus:border-[#37658f] focus:ring-2 focus:ring-[#d7e9f6]"
@@ -63,7 +76,6 @@ export default function LoginForm() {
           required
           minLength={8}
           autoComplete="current-password"
-          autoFocus
           className="w-full rounded-lg border border-[#b7cade] px-4 py-3 outline-none transition focus:border-[#37658f] focus:ring-2 focus:ring-[#d7e9f6]"
         />
       </div>

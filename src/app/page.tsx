@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 
 export const dynamic = 'force-dynamic'
 
@@ -304,3 +304,4 @@ function MiniMetric({ label, value, highlight = false }: { label: string; value:
     </div>
   )
 }
+

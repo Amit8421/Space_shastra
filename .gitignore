@@ -40,6 +40,9 @@ database-export.json
 # TypeScript local cache
 *.tsbuildinfo
 
+# Generated Prisma clients
+src/generated
+
 # Temporary report screenshots
 .tmp_*
 

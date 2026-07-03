@@ -18,7 +18,12 @@ const bytesToBase64Url = (bytes: ArrayBuffer) => {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-type EdgeSessionPayload = { role: 'ADMIN' | 'MANAGER' | 'VIEWER'; exp: number }
+type EdgeSessionPayload = {
+  role: 'ADMIN' | 'MANAGER' | 'VIEWER'
+  firmId: string
+  firmSchema: string
+  exp: number
+}
 
 const verifySessionToken = async (token?: string): Promise<EdgeSessionPayload | null> => {
   const secret = process.env.AUTH_SECRET
@@ -39,7 +44,9 @@ const verifySessionToken = async (token?: string): Promise<EdgeSessionPayload | 
 
   try {
     const parsed = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as EdgeSessionPayload
-    return typeof parsed.exp === 'number' && parsed.exp > Date.now() && ['ADMIN', 'MANAGER', 'VIEWER'].includes(parsed.role)
+    return typeof parsed.exp === 'number' && parsed.exp > Date.now() &&
+      typeof parsed.firmId === 'string' && typeof parsed.firmSchema === 'string' &&
+      ['ADMIN', 'MANAGER', 'VIEWER'].includes(parsed.role)
       ? parsed
       : null
   } catch {

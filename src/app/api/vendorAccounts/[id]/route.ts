@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { normalizeTextFields } from '@/lib/text-format'
 import { updateFurnitureVendorRates } from '@/lib/vendor-furniture-sync'
 import { money } from '@/lib/money'
@@ -95,3 +95,4 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update vendor account' }, { status: 500 })
   }
 }
+

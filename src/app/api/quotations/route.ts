@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { apiError } from '@/lib/api-error'
 import { calculateDocumentTotals, money } from '@/lib/money'
 import { normalizeTextField } from '@/lib/text-format'
@@ -98,3 +98,4 @@ export async function POST(request: NextRequest) {
     return apiError(error, 'Failed to create quotation')
   }
 }
+

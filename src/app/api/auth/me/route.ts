@@ -9,10 +9,13 @@ export async function GET(request: NextRequest) {
 
   const session = await prisma.session.findUnique({
     where: { id: payload.sessionId },
-    include: { user: { select: { id: true, email: true, name: true, role: true, isActive: true } } },
+    include: {
+      firm: { select: { id: true, name: true, slug: true, schemaName: true } },
+      user: { select: { id: true, username: true, email: true, name: true, role: true, isActive: true } },
+    },
   })
   if (!session || session.expiresAt <= new Date() || !session.user.isActive) {
     return NextResponse.json({ error: 'Session expired' }, { status: 401 })
   }
-  return NextResponse.json({ user: session.user })
+  return NextResponse.json({ user: session.user, firm: session.firm })
 }

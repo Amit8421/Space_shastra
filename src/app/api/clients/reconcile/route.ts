@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { money } from '@/lib/money'
 
 export async function POST(_request: NextRequest) {
@@ -54,3 +54,4 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json({ error: 'Failed to reconcile balances', details: String(error) }, { status: 500 })
   }
 }
+

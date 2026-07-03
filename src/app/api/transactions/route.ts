@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/tenant-prisma-proxy'
 import { normalizeTextFields } from '@/lib/text-format'
 
 function getVendorEntryType(type?: string | null) {
@@ -179,3 +179,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create transaction', details: String(error) }, { status: 500 })
   }
 }
+

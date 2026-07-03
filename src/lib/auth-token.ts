@@ -4,7 +4,12 @@ import { AUTH_MAX_AGE_SECONDS, getAuthSecret } from './auth-config'
 export type SessionPayload = {
   sessionId: string
   userId: string
-  email: string
+  firmId: string
+  firmSlug: string
+  firmName: string
+  firmSchema: string
+  username: string
+  email?: string | null
   name: string
   role: 'ADMIN' | 'MANAGER' | 'VIEWER'
   exp: number
@@ -54,7 +59,8 @@ export function verifySessionToken(token?: string | null) {
     const parsed = JSON.parse(base64UrlDecode(payload)) as SessionPayload
     if (
       typeof parsed.exp !== 'number' || parsed.exp <= Date.now() ||
-      !parsed.sessionId || !parsed.userId || !parsed.email ||
+      !parsed.sessionId || !parsed.userId || !parsed.firmId ||
+      !parsed.firmSlug || !parsed.firmName || !parsed.firmSchema || !parsed.username ||
       !['ADMIN', 'MANAGER', 'VIEWER'].includes(parsed.role)
     ) return null
     return parsed

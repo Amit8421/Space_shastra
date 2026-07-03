@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const pageSize = 50
   const [items, total] = await prisma.$transaction([
     prisma.auditLog.findMany({
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { name: true, username: true } } },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
