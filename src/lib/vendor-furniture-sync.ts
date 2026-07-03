@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 const FURNITURE_CATEGORY = 'furniture'
 
 type SyncClient = Prisma.TransactionClient
+type DecimalValue = Prisma.Decimal | number
 
 type FurnitureSourceItem = {
   id: string
@@ -14,7 +15,7 @@ type FurnitureSourceItem = {
   lengthCm: number | null
   widthCm: number | null
   areaSqFt: number | null
-  rate: number | null
+  rate: DecimalValue | null
 }
 
 function isFurnitureCategory(category?: string | null) {
@@ -54,8 +55,8 @@ async function applyFurnitureOpeningBalance(
   account: {
     id: string
     vendorId: string
-    openingBalance: number
-    currentBalance: number
+    openingBalance: DecimalValue
+    currentBalance: DecimalValue
   },
   nextOpeningBalance: number,
 ) {
@@ -87,12 +88,12 @@ async function syncFurnitureItemsForAccount(
   account: {
     id: string
     vendorId: string
-    openingBalance: number
-    currentBalance: number
+    openingBalance: DecimalValue
+    currentBalance: DecimalValue
     furnitureItems: Array<{
       id: string
       quotationItemId: string | null
-      vendorRate: number
+      vendorRate: DecimalValue
     }>
   },
   sourceItems: FurnitureSourceItem[],

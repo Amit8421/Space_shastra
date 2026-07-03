@@ -6,6 +6,7 @@ import { FormEvent, useState } from 'react'
 export default function LoginForm() {
   const searchParams = useSearchParams()
   const nextPath = searchParams.get('next') || '/'
+  const [email, setEmail] = useState('admin@spaceshastra.local')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,7 +20,7 @@ export default function LoginForm() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       })
       const data = await response.json()
 
@@ -39,6 +40,18 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
+        <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#29496c]">Email</label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+          autoComplete="username"
+          className="w-full rounded-lg border border-[#b7cade] px-4 py-3 outline-none transition focus:border-[#37658f] focus:ring-2 focus:ring-[#d7e9f6]"
+        />
+      </div>
+      <div>
         <label htmlFor="password" className="mb-2 block text-sm font-semibold text-[#29496c]">
           Password
         </label>
@@ -48,6 +61,8 @@ export default function LoginForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
+          minLength={8}
+          autoComplete="current-password"
           autoFocus
           className="w-full rounded-lg border border-[#b7cade] px-4 py-3 outline-none transition focus:border-[#37658f] focus:ring-2 focus:ring-[#d7e9f6]"
         />

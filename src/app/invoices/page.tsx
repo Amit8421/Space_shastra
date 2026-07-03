@@ -14,6 +14,13 @@ interface InvoiceItem {
 interface Invoice {
   id: string
   invoiceNo: string
+  subtotal?: number
+  gstType?: 'NONE' | 'CGST_SGST' | 'IGST'
+  gstRate?: number
+  cgstAmount?: number
+  sgstAmount?: number
+  igstAmount?: number
+  placeOfSupply?: string
   amount: number
   status: string
   issueDate: string
@@ -54,6 +61,9 @@ export default function InvoicesPage() {
     clientId: '',
     projectId: '',
     amount: '',
+    gstType: 'CGST_SGST',
+    gstRate: '18',
+    placeOfSupply: '',
     notes: '',
     status: 'pending'
   })
@@ -101,6 +111,30 @@ export default function InvoicesPage() {
 
   const calculateTotal = (items: InvoiceItem[]) => {
     return items.reduce((sum, item) => sum + item.total, 0)
+  }
+
+  const formatCurrency = (amount: number | string | undefined) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+    }).format(Number(amount || 0))
+
+  const calculateInvoiceTotals = () => {
+    const subtotal = calculateTotal(invoiceItems)
+    const gstType = formData.gstType
+    const gstRate = Number(formData.gstRate || 0)
+    const taxAmount = gstType === 'NONE' ? 0 : subtotal * (gstRate / 100)
+    const cgstAmount = gstType === 'CGST_SGST' ? taxAmount / 2 : 0
+    const sgstAmount = gstType === 'CGST_SGST' ? taxAmount / 2 : 0
+    const igstAmount = gstType === 'IGST' ? taxAmount : 0
+    return {
+      subtotal,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      amount: subtotal + taxAmount,
+    }
   }
 
   const handleItemChange = (index: number, field: 'description' | 'quantity' | 'unitPrice', value: string) => {
@@ -180,6 +214,9 @@ export default function InvoicesPage() {
           clientId: '',
           projectId: '',
           amount: '',
+          gstType: 'CGST_SGST',
+          gstRate: '18',
+          placeOfSupply: '',
           notes: '',
           status: 'pending'
         })
@@ -200,6 +237,9 @@ export default function InvoicesPage() {
       clientId: invoice.clientId,
       projectId: invoice.projectId,
       amount: invoice.amount.toString(),
+      gstType: invoice.gstType || 'CGST_SGST',
+      gstRate: String(invoice.gstRate ?? 18),
+      placeOfSupply: invoice.placeOfSupply || '',
       notes: invoice.notes || '',
       status: invoice.status
     })
@@ -245,6 +285,9 @@ export default function InvoicesPage() {
       clientId: '',
       projectId: '',
       amount: '',
+      gstType: 'CGST_SGST',
+      gstRate: '18',
+      placeOfSupply: '',
       notes: '',
       status: 'pending'
     })
@@ -381,14 +424,56 @@ export default function InvoicesPage() {
                 </button>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Total Amount</label>
-                <input
-                  type="text"
-                  name="amount"
-                  value={calculateTotal(invoiceItems).toFixed(2)}
-                  readOnly
-                  className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded"
-                />
+                <label className="block text-sm font-medium mb-2">GST Details</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <select
+                    name="gstType"
+                    value={formData.gstType}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="CGST_SGST">CGST + SGST</option>
+                    <option value="IGST">IGST</option>
+                    <option value="NONE">No GST</option>
+                  </select>
+                  <input
+                    type="number"
+                    name="gstRate"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={formData.gstRate}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="GST %"
+                  />
+                  <input
+                    type="text"
+                    name="placeOfSupply"
+                    value={formData.placeOfSupply}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Place of supply"
+                  />
+                </div>
+              </div>
+              <div className="mb-4 rounded bg-gray-50 p-3 text-sm">
+                {(() => {
+                  const totals = calculateInvoiceTotals()
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(totals.subtotal)}</span></div>
+                      {formData.gstType === 'CGST_SGST' && (
+                        <>
+                          <div className="flex justify-between"><span>CGST</span><span>{formatCurrency(totals.cgstAmount)}</span></div>
+                          <div className="flex justify-between"><span>SGST</span><span>{formatCurrency(totals.sgstAmount)}</span></div>
+                        </>
+                      )}
+                      {formData.gstType === 'IGST' && <div className="flex justify-between"><span>IGST</span><span>{formatCurrency(totals.igstAmount)}</span></div>}
+                      <div className="flex justify-between border-t pt-2 font-bold"><span>Grand Total</span><span>{formatCurrency(totals.amount)}</span></div>
+                    </div>
+                  )
+                })()}
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Notes</label>
@@ -440,16 +525,25 @@ export default function InvoicesPage() {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Space Shastra Interiors</p>
-                <h2 className="text-2xl font-bold">Quotation Report</h2>
+                <h2 className="text-2xl font-bold">Tax Invoice</h2>
                 <p className="text-sm text-gray-600">Invoice #{viewingInvoice.invoiceNo}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setViewingInvoice(null)}
-                className="text-gray-500 hover:text-gray-900"
-              >
-                Close
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="text-blue-600 hover:underline"
+                >
+                  Print / PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingInvoice(null)}
+                  className="text-gray-500 hover:text-gray-900"
+                >
+                  Close
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-sm text-gray-700">
               <div>
@@ -468,6 +562,14 @@ export default function InvoicesPage() {
                 <p className="font-semibold">Status</p>
                 <p className="uppercase text-sm tracking-[0.2em] text-black">{viewingInvoice.status}</p>
               </div>
+              <div>
+                <p className="font-semibold">Place of Supply</p>
+                <p>{viewingInvoice.placeOfSupply || '-'}</p>
+              </div>
+              <div>
+                <p className="font-semibold">GST</p>
+                <p>{viewingInvoice.gstType || 'CGST_SGST'} @ {Number(viewingInvoice.gstRate ?? 18)}%</p>
+              </div>
             </div>
             <div className="overflow-x-auto mb-6">
               <table className="w-full border border-gray-200">
@@ -484,21 +586,28 @@ export default function InvoicesPage() {
                     <tr key={item.id || item.description} className="border-t border-gray-200">
                       <td className="px-4 py-3 text-sm">{item.description}</td>
                       <td className="px-4 py-3 text-right text-sm">{item.quantity}</td>
-                      <td className="px-4 py-3 text-right text-sm">${parseFloat(item.unitPrice).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-sm">${item.total.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-sm">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-4 py-3 text-right text-sm">{formatCurrency(item.total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-end gap-4 text-sm">
-              <div className="text-right">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
                 <p className="font-semibold">Notes</p>
                 <p className="text-gray-600">{viewingInvoice.notes || 'N/A'}</p>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">Grand Total</p>
-                <p className="text-xl font-bold">${viewingInvoice.amount.toFixed(2)}</p>
+              <div className="ml-auto w-full max-w-sm space-y-1 text-right">
+                <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(viewingInvoice.subtotal ?? calculateTotal(viewingInvoice.items))}</span></div>
+                {viewingInvoice.gstType === 'CGST_SGST' && (
+                  <>
+                    <div className="flex justify-between"><span>CGST</span><span>{formatCurrency(viewingInvoice.cgstAmount)}</span></div>
+                    <div className="flex justify-between"><span>SGST</span><span>{formatCurrency(viewingInvoice.sgstAmount)}</span></div>
+                  </>
+                )}
+                {viewingInvoice.gstType === 'IGST' && <div className="flex justify-between"><span>IGST</span><span>{formatCurrency(viewingInvoice.igstAmount)}</span></div>}
+                <div className="flex justify-between border-t pt-2 text-lg font-bold"><span>Grand Total</span><span>{formatCurrency(viewingInvoice.amount)}</span></div>
               </div>
             </div>
           </div>
@@ -525,7 +634,7 @@ export default function InvoicesPage() {
                 <tr key={invoice.id}>
                   <td className="px-6 py-3 font-semibold">{invoice.invoiceNo}</td>
                   <td className="px-6 py-3">{invoice.client.firstName} {invoice.client.lastName}</td>
-                  <td className="px-6 py-3">${invoice.amount.toFixed(2)}</td>
+                  <td className="px-6 py-3">{formatCurrency(invoice.amount)}</td>
                   <td className="px-6 py-3">
                     <span className={`px-2 py-1 rounded text-sm ${
                       invoice.status === 'paid' ? 'bg-green-100 text-green-800' :

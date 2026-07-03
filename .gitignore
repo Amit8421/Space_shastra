@@ -34,9 +34,6 @@ logs
 .env.test.local
 .env.production.local
 
-# Prisma
-prisma/migrations
-
 # Local data exports/backups
 database-export.json
 

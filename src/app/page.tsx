@@ -19,15 +19,7 @@ type ClientLedgerRow = {
   receivable: number
 }
 
-const DEFAULT_EXECUTION_FEE_PERCENT = 6
-
-const getExecutionFeePercent = (quotation: { executionFeePercent?: number | null }) =>
-  quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT
-
-const getQuotationGrandTotal = (quotation: { amount?: number | null; executionFeePercent?: number | null }) => {
-  const subtotal = Number(quotation.amount || 0)
-  return subtotal + subtotal * (getExecutionFeePercent(quotation) / 100)
-}
+const getQuotationGrandTotal = (quotation: { amount?: unknown }) => Number(quotation.amount || 0)
 
 type VendorOutstandingRow = {
   vendorId: string

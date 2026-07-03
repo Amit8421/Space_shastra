@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
+import { money } from '@/lib/money'
 
 export async function POST(_request: NextRequest) {
   try {
@@ -23,25 +24,25 @@ export async function POST(_request: NextRequest) {
         _sum: { amount: true },
       })
 
-      const acceptedTotal = acceptedResult._sum.amount ?? 0
-      const paymentsTotal = paymentsResult._sum.amount ?? 0
-      const expectedBalance = acceptedTotal - paymentsTotal
+      const acceptedTotal = money(acceptedResult._sum.amount)
+      const paymentsTotal = money(paymentsResult._sum.amount)
+      const expectedBalance = acceptedTotal.sub(paymentsTotal)
 
       const clientRecord = await prisma.client.findUnique({
         where: { id: client.id },
         select: { balance: true },
       })
 
-      const oldBalance = clientRecord?.balance ?? 0
+      const oldBalance = money(clientRecord?.balance)
 
-      if (oldBalance !== expectedBalance) {
+      if (!oldBalance.equals(expectedBalance)) {
         await prisma.client.update({
           where: { id: client.id },
           data: { balance: expectedBalance },
         })
       }
 
-      results.push({ id: client.id, oldBalance, newBalance: expectedBalance })
+      results.push({ id: client.id, oldBalance: oldBalance.toNumber(), newBalance: expectedBalance.toNumber() })
     }
 
     return NextResponse.json({

@@ -18,12 +18,14 @@ const bytesToBase64Url = (bytes: ArrayBuffer) => {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
-const verifySessionToken = async (token?: string) => {
+type EdgeSessionPayload = { role: 'ADMIN' | 'MANAGER' | 'VIEWER'; exp: number }
+
+const verifySessionToken = async (token?: string): Promise<EdgeSessionPayload | null> => {
   const secret = process.env.AUTH_SECRET
-  if (!token || !secret) return false
+  if (!token || !secret) return null
 
   const [payload, signature] = token.split('.')
-  if (!payload || !signature) return false
+  if (!payload || !signature) return null
 
   const key = await crypto.subtle.importKey(
     'raw',
@@ -33,13 +35,15 @@ const verifySessionToken = async (token?: string) => {
     ['sign'],
   )
   const expectedSignature = bytesToBase64Url(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)))
-  if (signature !== expectedSignature) return false
+  if (signature !== expectedSignature) return null
 
   try {
-    const parsed = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload)))
-    return typeof parsed.exp === 'number' && parsed.exp > Date.now()
+    const parsed = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as EdgeSessionPayload
+    return typeof parsed.exp === 'number' && parsed.exp > Date.now() && ['ADMIN', 'MANAGER', 'VIEWER'].includes(parsed.role)
+      ? parsed
+      : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -58,8 +62,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const isAuthenticated = await verifySessionToken(request.cookies.get(AUTH_COOKIE_NAME)?.value)
-  if (isAuthenticated) return NextResponse.next()
+  const session = await verifySessionToken(request.cookies.get(AUTH_COOKIE_NAME)?.value)
+  if (session) {
+    if (pathname.startsWith('/admin') && session.role !== 'ADMIN') {
+      const homeUrl = request.nextUrl.clone()
+      homeUrl.pathname = '/'
+      return NextResponse.redirect(homeUrl)
+    }
+    if (pathname.startsWith('/api/')) {
+      if (pathname.startsWith('/api/admin/') && session.role !== 'ADMIN') {
+        return NextResponse.json({ error: 'Administrator access required.' }, { status: 403 })
+      }
+      const isWrite = !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+      if (isWrite && session.role === 'VIEWER') {
+        return NextResponse.json({ error: 'Viewer accounts are read-only.' }, { status: 403 })
+      }
+      if (request.method === 'DELETE' && session.role !== 'ADMIN') {
+        return NextResponse.json({ error: 'Only administrators can delete records.' }, { status: 403 })
+      }
+    }
+    return NextResponse.next()
+  }
 
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

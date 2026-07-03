@@ -163,6 +163,15 @@ interface QuotationItem {
 interface Quotation {
   id: string
   quotationNo: string
+  subtotal?: number
+  executionFeeAmount?: number
+  taxableAmount?: number
+  gstType?: 'NONE' | 'CGST_SGST' | 'IGST'
+  gstRate?: number
+  cgstAmount?: number
+  sgstAmount?: number
+  igstAmount?: number
+  placeOfSupply?: string
   amount: number
   executionFeePercent?: number
   status: string
@@ -313,10 +322,9 @@ const getFurnitureDescriptionOptions = (area?: string | null) => {
 }
 const getExecutionFeePercent = (quotation?: Pick<Quotation, 'executionFeePercent'> | null) =>
   quotation?.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT
-const getQuotationGrandTotal = (quotation: Pick<Quotation, 'amount' | 'executionFeePercent'>) => {
-  const subtotal = Number(quotation.amount || 0)
-  return subtotal + subtotal * (getExecutionFeePercent(quotation) / 100)
-}
+const getQuotationGrandTotal = (quotation: Pick<Quotation, 'amount'>) => Number(quotation.amount || 0)
+const getQuotationSubtotal = (quotation: Pick<Quotation, 'amount' | 'subtotal'>) =>
+  Number(quotation.subtotal ?? quotation.amount ?? 0)
 
 const getComputedQuotationItems = (items: QuotationItem[]): ComputedQuotationItem[] =>
   items.map((item) => {
@@ -414,10 +422,14 @@ function buildQuotationPrintHtml(quotation: Quotation) {
   const qrUrl = typeof window !== 'undefined' ? `${window.location.origin}/payment-qr.png` : ''
   const items = getComputedQuotationItems(quotation.items)
   const sections = getQuotationSections(items)
-  const subtotal = Number(quotation.amount)
+  const subtotal = getQuotationSubtotal(quotation)
   const executionFeePercent = getExecutionFeePercent(quotation)
-  const executionFee = subtotal * (executionFeePercent / 100)
-  const grandTotal = subtotal + executionFee
+  const executionFee = Number(quotation.executionFeeAmount ?? subtotal * (executionFeePercent / 100))
+  const taxableAmount = Number(quotation.taxableAmount ?? subtotal + executionFee)
+  const cgstAmount = Number(quotation.cgstAmount ?? 0)
+  const sgstAmount = Number(quotation.sgstAmount ?? 0)
+  const igstAmount = Number(quotation.igstAmount ?? 0)
+  const grandTotal = Number(quotation.amount || taxableAmount + cgstAmount + sgstAmount + igstAmount)
   const noteRows = getQuotationNoteLines(quotation.notes)
     .map((note) => `<li>${escapeHtml(note)}</li>`)
     .join('')
@@ -874,6 +886,34 @@ function buildQuotationPrintHtml(quotation: Quotation) {
                   <td class="amount">${formatCurrencyWithSymbol(executionFee)}</td>
                 </tr>
                 <tr>
+                  <td colspan="5" class="summary-label amount">Taxable Amount</td>
+                  <td class="amount">${formatCurrencyWithSymbol(taxableAmount)}</td>
+                </tr>
+                ${
+                  quotation.gstType === 'CGST_SGST'
+                    ? `
+                      <tr>
+                        <td colspan="5" class="summary-label amount">CGST (${Number(quotation.gstRate ?? 18) / 2}%)</td>
+                        <td class="amount">${formatCurrencyWithSymbol(cgstAmount)}</td>
+                      </tr>
+                      <tr>
+                        <td colspan="5" class="summary-label amount">SGST (${Number(quotation.gstRate ?? 18) / 2}%)</td>
+                        <td class="amount">${formatCurrencyWithSymbol(sgstAmount)}</td>
+                      </tr>
+                    `
+                    : ''
+                }
+                ${
+                  quotation.gstType === 'IGST'
+                    ? `
+                      <tr>
+                        <td colspan="5" class="summary-label amount">IGST (${Number(quotation.gstRate ?? 18)}%)</td>
+                        <td class="amount">${formatCurrencyWithSymbol(igstAmount)}</td>
+                      </tr>
+                    `
+                    : ''
+                }
+                <tr>
                   <td colspan="5" class="summary-accent center">Grand Total</td>
                   <td class="summary-final amount">${formatCurrencyWithSymbol(grandTotal)}</td>
                 </tr>
@@ -898,6 +938,10 @@ function buildQuotationPrintHtml(quotation: Quotation) {
                   <tr>
                     <td>Execution fee</td>
                     <td class="amount"><strong>${formatCurrencyWithSymbol(executionFee)} (${executionFeePercent.toFixed(2).replace(/\.00$/, '')}%)</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Taxable amount</td>
+                    <td class="amount"><strong>${formatCurrencyWithSymbol(taxableAmount)}</strong></td>
                   </tr>
                   <tr>
                     <td>Final grand total</td>
@@ -1012,6 +1056,9 @@ export default function QuotationsPage() {
     projectId: '',
     amount: '',
     executionFeePercent: '0',
+    gstType: 'CGST_SGST',
+    gstRate: '18',
+    placeOfSupply: '',
     notes: '',
     status: 'draft'
   })
@@ -1058,6 +1105,27 @@ export default function QuotationsPage() {
 
   const calculateTotal = (items: QuotationItem[]) => {
     return items.reduce((sum, item) => sum + item.total, 0)
+  }
+
+  const calculateQuotationTotals = () => {
+    const subtotal = calculateTotal(quotationItems)
+    const executionFeePercent = Number(formData.executionFeePercent || 0)
+    const executionFeeAmount = subtotal * (executionFeePercent / 100)
+    const taxableAmount = subtotal + executionFeeAmount
+    const gstRate = Number(formData.gstRate || 0)
+    const taxAmount = formData.gstType === 'NONE' ? 0 : taxableAmount * (gstRate / 100)
+    const cgstAmount = formData.gstType === 'CGST_SGST' ? taxAmount / 2 : 0
+    const sgstAmount = formData.gstType === 'CGST_SGST' ? taxAmount / 2 : 0
+    const igstAmount = formData.gstType === 'IGST' ? taxAmount : 0
+    return {
+      subtotal,
+      executionFeeAmount,
+      taxableAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      amount: taxableAmount + taxAmount,
+    }
   }
 
   const calculateItemTotal = (item: Pick<QuotationItem, 'quantity' | 'lengthIn' | 'widthIn' | 'rate'>) => {
@@ -1121,6 +1189,9 @@ export default function QuotationsPage() {
       projectId: matchedProjectId,
       amount: String(calculateTotal(importedItems)),
       executionFeePercent: '0',
+      gstType: 'CGST_SGST',
+      gstRate: '18',
+      placeOfSupply: '',
       notes: importPreview.notes || '',
       status: 'draft',
     })
@@ -1349,6 +1420,9 @@ export default function QuotationsPage() {
           projectId: '',
           amount: '',
           executionFeePercent: '0',
+          gstType: 'CGST_SGST',
+          gstRate: '18',
+          placeOfSupply: '',
           notes: '',
           status: 'draft'
         })
@@ -1372,6 +1446,9 @@ export default function QuotationsPage() {
       projectId: quotation.projectId,
       amount: quotation.amount.toString(),
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      gstType: quotation.gstType || 'CGST_SGST',
+      gstRate: String(quotation.gstRate ?? 18),
+      placeOfSupply: quotation.placeOfSupply || '',
       notes: quotation.notes || '',
       status: quotation.status,
     })
@@ -1411,6 +1488,9 @@ export default function QuotationsPage() {
       projectId: '',
       amount: calculateTotal(copiedItems).toString(),
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      gstType: quotation.gstType || 'CGST_SGST',
+      gstRate: String(quotation.gstRate ?? 18),
+      placeOfSupply: quotation.placeOfSupply || '',
       notes: quotation.notes || '',
       status: 'draft',
     })
@@ -1453,6 +1533,9 @@ export default function QuotationsPage() {
       projectId: '',
       amount: '',
       executionFeePercent: '0',
+      gstType: 'CGST_SGST',
+      gstRate: '18',
+      placeOfSupply: '',
       notes: '',
       status: 'draft'
     })
@@ -1785,6 +1868,42 @@ export default function QuotationsPage() {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">GST Type</label>
+                  <select
+                    name="gstType"
+                    value={formData.gstType}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
+                  >
+                    <option value="CGST_SGST">CGST + SGST</option>
+                    <option value="IGST">IGST</option>
+                    <option value="NONE">No GST</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">GST %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    name="gstRate"
+                    value={formData.gstRate}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Place of Supply</label>
+                  <input
+                    type="text"
+                    name="placeOfSupply"
+                    value={formData.placeOfSupply}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
               </div>
 
               <div className="mb-4">
@@ -2045,13 +2164,25 @@ export default function QuotationsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Total Amount</label>
-                  <input
-                    type="text"
-                    value={calculateTotal(quotationItems).toFixed(2)}
-                    readOnly
-                    className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded"
-                  />
+                  <label className="block text-sm font-medium mb-1">Amount Summary</label>
+                  {(() => {
+                    const totals = calculateQuotationTotals()
+                    return (
+                      <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm">
+                        <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrencyWithSymbol(totals.subtotal)}</span></div>
+                        <div className="flex justify-between"><span>Execution Fee</span><span>{formatCurrencyWithSymbol(totals.executionFeeAmount)}</span></div>
+                        <div className="flex justify-between"><span>Taxable Amount</span><span>{formatCurrencyWithSymbol(totals.taxableAmount)}</span></div>
+                        {formData.gstType === 'CGST_SGST' && (
+                          <>
+                            <div className="flex justify-between"><span>CGST</span><span>{formatCurrencyWithSymbol(totals.cgstAmount)}</span></div>
+                            <div className="flex justify-between"><span>SGST</span><span>{formatCurrencyWithSymbol(totals.sgstAmount)}</span></div>
+                          </>
+                        )}
+                        {formData.gstType === 'IGST' && <div className="flex justify-between"><span>IGST</span><span>{formatCurrencyWithSymbol(totals.igstAmount)}</span></div>}
+                        <div className="mt-2 flex justify-between border-t pt-2 font-bold"><span>Grand Total</span><span>{formatCurrencyWithSymbol(totals.amount)}</span></div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -2081,10 +2212,14 @@ export default function QuotationsPage() {
       {viewingQuotation && (() => {
         const computedItems = getComputedQuotationItems(viewingQuotation.items)
         const sections = getQuotationSections(computedItems)
-        const subtotal = Number(viewingQuotation.amount || 0)
+        const subtotal = getQuotationSubtotal(viewingQuotation)
         const executionFeePercent = getExecutionFeePercent(viewingQuotation)
-        const executionFee = subtotal * (executionFeePercent / 100)
-        const grandTotal = subtotal + executionFee
+        const executionFee = Number(viewingQuotation.executionFeeAmount ?? subtotal * (executionFeePercent / 100))
+        const taxableAmount = Number(viewingQuotation.taxableAmount ?? subtotal + executionFee)
+        const cgstAmount = Number(viewingQuotation.cgstAmount ?? 0)
+        const sgstAmount = Number(viewingQuotation.sgstAmount ?? 0)
+        const igstAmount = Number(viewingQuotation.igstAmount ?? 0)
+        const grandTotal = Number(viewingQuotation.amount || taxableAmount + cgstAmount + sgstAmount + igstAmount)
         const clientName = `${viewingQuotation.client.firstName} ${viewingQuotation.client.lastName}`.trim()
         const noteLines = getQuotationNoteLines(viewingQuotation.notes)
 
@@ -2237,6 +2372,28 @@ export default function QuotationsPage() {
                         </td>
                         <td className="border border-[#b8cfdf] px-3 py-3 text-right">{formatCurrencyWithSymbol(executionFee)}</td>
                       </tr>
+                      <tr>
+                        <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right font-semibold">Taxable Amount</td>
+                        <td className="border border-[#b8cfdf] px-3 py-3 text-right font-semibold">{formatCurrencyWithSymbol(taxableAmount)}</td>
+                      </tr>
+                      {viewingQuotation.gstType === 'CGST_SGST' && (
+                        <>
+                          <tr>
+                            <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right">CGST ({Number(viewingQuotation.gstRate ?? 18) / 2}%)</td>
+                            <td className="border border-[#b8cfdf] px-3 py-3 text-right">{formatCurrencyWithSymbol(cgstAmount)}</td>
+                          </tr>
+                          <tr>
+                            <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right">SGST ({Number(viewingQuotation.gstRate ?? 18) / 2}%)</td>
+                            <td className="border border-[#b8cfdf] px-3 py-3 text-right">{formatCurrencyWithSymbol(sgstAmount)}</td>
+                          </tr>
+                        </>
+                      )}
+                      {viewingQuotation.gstType === 'IGST' && (
+                        <tr>
+                          <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right">IGST ({Number(viewingQuotation.gstRate ?? 18)}%)</td>
+                          <td className="border border-[#b8cfdf] px-3 py-3 text-right">{formatCurrencyWithSymbol(igstAmount)}</td>
+                        </tr>
+                      )}
                       <tr className="bg-[linear-gradient(180deg,#d6ebf8_0%,#b5d3e8_100%)]">
                         <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right text-base font-bold">Grand Total</td>
                         <td className="border border-[#b8cfdf] px-3 py-3 text-right text-base font-bold">{formatCurrencyWithSymbol(grandTotal)}</td>

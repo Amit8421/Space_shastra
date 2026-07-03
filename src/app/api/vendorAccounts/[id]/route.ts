@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextFields } from '@/lib/text-format'
 import { updateFurnitureVendorRates } from '@/lib/vendor-furniture-sync'
+import { money } from '@/lib/money'
 
 export async function PUT(
   request: NextRequest,
@@ -45,19 +46,19 @@ export async function PUT(
 
       if (!isFurnitureVendor) {
         const nextOpeningBalance = normalizedBody.openingBalance !== undefined
-          ? Number(normalizedBody.openingBalance) || 0
+          ? money(normalizedBody.openingBalance)
           : accountAfterRateSync.openingBalance
-        const openingBalanceDelta = nextOpeningBalance - accountAfterRateSync.openingBalance
+        const openingBalanceDelta = nextOpeningBalance.sub(accountAfterRateSync.openingBalance)
 
         accountAfterRateSync = await tx.vendorAccount.update({
           where: { id: params.id },
           data: {
             openingBalance: nextOpeningBalance,
-            currentBalance: accountAfterRateSync.currentBalance + openingBalanceDelta,
+            currentBalance: accountAfterRateSync.currentBalance.add(openingBalanceDelta),
           },
         })
 
-        if (existingAccount.vendorId && openingBalanceDelta !== 0) {
+        if (existingAccount.vendorId && !openingBalanceDelta.isZero()) {
           await tx.vendor.update({
             where: { id: existingAccount.vendorId },
             data: {

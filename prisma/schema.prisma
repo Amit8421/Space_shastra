@@ -7,16 +7,65 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum GstType {
+  NONE
+  CGST_SGST
+  IGST
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      String   @default("admin")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         UserRole   @default(VIEWER)
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  sessions     Session[]
+  auditLogs    AuditLog[]
 
   @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model Client {
@@ -30,11 +79,13 @@ model Client {
   state        String?
   zipCode      String?
   country      String?
+  gstin        String?
+  stateCode    String?
   notes        String?
   status       String        @default("active")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  balance      Float         @default(0)
+  balance      Decimal       @default(0) @db.Decimal(14, 2)
   invoices     Invoice[]
   projects     Project[]
   quotations   Quotation[]
@@ -53,12 +104,14 @@ model Vendor {
   state          String?
   zipCode        String?
   country        String?
+  gstin          String?
+  stateCode      String?
   category       String?
   notes          String?
   status         String          @default("active")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
-  balance        Float           @default(0)
+  balance        Decimal         @default(0) @db.Decimal(14, 2)
   purchases      Purchase[]
   transactions   Transaction[]
   vendorAccounts VendorAccount[]
@@ -67,21 +120,22 @@ model Vendor {
 }
 
 model VendorAccount {
-  id             String               @id @default(cuid())
+  id             String                       @id @default(cuid())
   vendorId       String
   projectId      String
-  openingBalance Float                @default(0)
-  currentBalance Float                @default(0)
-  status         String               @default("active")
+  openingBalance Decimal                      @default(0) @db.Decimal(14, 2)
+  currentBalance Decimal                      @default(0) @db.Decimal(14, 2)
+  status         String                       @default("active")
   notes          String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
   entries        VendorAccountEntry[]
   furnitureItems VendorAccountFurnitureItem[]
-  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  vendor         Vendor               @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  project        Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor         Vendor                       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@unique([vendorId, projectId])
+  @@index([projectId])
   @@map("vendor_accounts")
 }
 
@@ -89,13 +143,14 @@ model VendorAccountEntry {
   id              String        @id @default(cuid())
   vendorAccountId String
   type            String
-  amount          Float
+  amount          Decimal       @db.Decimal(14, 2)
   description     String
   date            DateTime      @default(now())
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
 
+  @@index([vendorAccountId])
   @@map("vendor_account_entries")
 }
 
@@ -112,7 +167,7 @@ model Project {
   startDate      DateTime?
   endDate        DateTime?
   status         String          @default("active")
-  budget         Float?
+  budget         Decimal?        @db.Decimal(14, 2)
   notes          String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -123,26 +178,36 @@ model Project {
   transactions   Transaction[]
   vendorAccounts VendorAccount[]
 
+  @@index([clientId])
   @@map("projects")
 }
 
 model Invoice {
-  id        String        @id @default(cuid())
-  invoiceNo String        @unique
-  clientId  String
-  projectId String
-  issueDate DateTime      @default(now())
-  dueDate   DateTime?
-  amount    Float
-  status    String        @default("pending")
-  notes     String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  items     InvoiceItem[]
-  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  payments  Payment[]
+  id            String        @id @default(cuid())
+  invoiceNo     String        @unique
+  clientId      String
+  projectId     String
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  subtotal      Decimal       @default(0) @db.Decimal(14, 2)
+  gstType       GstType       @default(CGST_SGST)
+  gstRate       Decimal       @default(18) @db.Decimal(5, 2)
+  cgstAmount    Decimal       @default(0) @db.Decimal(14, 2)
+  sgstAmount    Decimal       @default(0) @db.Decimal(14, 2)
+  igstAmount    Decimal       @default(0) @db.Decimal(14, 2)
+  amount        Decimal       @db.Decimal(14, 2)
+  placeOfSupply String?
+  status        String        @default("pending")
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         InvoiceItem[]
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments      Payment[]
 
+  @@index([clientId])
+  @@index([projectId])
   @@map("invoices")
 }
 
@@ -151,56 +216,69 @@ model InvoiceItem {
   invoiceId   String
   description String
   quantity    Float
-  unitPrice   Float
-  total       Float
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  total       Decimal  @db.Decimal(14, 2)
   createdAt   DateTime @default(now())
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  @@index([invoiceId])
   @@map("invoice_items")
 }
 
 model Quotation {
-  id                  String          @id @default(cuid())
-  quotationNo         String          @unique
-  clientId            String
-  projectId           String
-  issueDate           DateTime        @default(now())
-  dueDate             DateTime?
-  amount              Float
-  status              String          @default("draft")
-  notes               String?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  executionFeePercent Float           @default(0)
-  items               QuotationItem[]
+  id                   String                       @id @default(cuid())
+  quotationNo          String                       @unique
+  clientId             String
+  projectId            String
+  issueDate            DateTime                     @default(now())
+  dueDate              DateTime?
+  subtotal             Decimal                      @default(0) @db.Decimal(14, 2)
+  executionFeeAmount   Decimal                      @default(0) @db.Decimal(14, 2)
+  taxableAmount        Decimal                      @default(0) @db.Decimal(14, 2)
+  gstType              GstType                      @default(CGST_SGST)
+  gstRate              Decimal                      @default(18) @db.Decimal(5, 2)
+  cgstAmount           Decimal                      @default(0) @db.Decimal(14, 2)
+  sgstAmount           Decimal                      @default(0) @db.Decimal(14, 2)
+  igstAmount           Decimal                      @default(0) @db.Decimal(14, 2)
+  amount               Decimal                      @db.Decimal(14, 2)
+  placeOfSupply        String?
+  status               String                       @default("draft")
+  notes                String?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  executionFeePercent  Decimal                      @default(0) @db.Decimal(5, 2)
+  items                QuotationItem[]
   vendorFurnitureItems VendorAccountFurnitureItem[]
-  client              Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  project             Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  client               Client                       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([clientId])
+  @@index([projectId])
   @@map("quotations")
 }
 
 model QuotationItem {
-  id          String    @id @default(cuid())
-  quotationId String
-  description String
-  quantity    Float
-  total       Float
-  createdAt   DateTime  @default(now())
-  area        String
-  category    String
-  areaSqFt    Float?
-  lengthCm    Float?
-  rate        Float?
+  id                   String                       @id @default(cuid())
+  quotationId          String
+  description          String
+  quantity             Float
+  total                Decimal                      @db.Decimal(14, 2)
+  createdAt            DateTime                     @default(now())
+  area                 String
+  category             String
+  areaSqFt             Float?
+  lengthCm             Float?
+  rate                 Decimal?                     @db.Decimal(14, 2)
   vendorFurnitureItems VendorAccountFurnitureItem[]
-  widthCm     Float?
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  widthCm              Float?
+  quotation            Quotation                    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
+  @@index([quotationId])
   @@map("quotation_items")
 }
 
 model VendorAccountFurnitureItem {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   vendorAccountId String
   quotationId     String?
   quotationItemId String?
@@ -211,29 +289,32 @@ model VendorAccountFurnitureItem {
   lengthCm        Float?
   widthCm         Float?
   areaSqFt        Float?
-  quotationRate   Float?
-  vendorRate      Float         @default(0)
-  vendorTotal     Float         @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
-  quotation       Quotation?    @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  quotationRate   Decimal?       @db.Decimal(14, 2)
+  vendorRate      Decimal        @default(0) @db.Decimal(14, 2)
+  vendorTotal     Decimal        @default(0) @db.Decimal(14, 2)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  vendorAccount   VendorAccount  @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+  quotation       Quotation?     @relation(fields: [quotationId], references: [id], onDelete: SetNull)
   quotationItem   QuotationItem? @relation(fields: [quotationItemId], references: [id], onDelete: SetNull)
 
   @@unique([vendorAccountId, quotationItemId])
+  @@index([quotationId])
+  @@index([quotationItemId])
   @@map("vendor_account_furniture_items")
 }
 
 model Payment {
   id          String   @id @default(cuid())
   invoiceId   String
-  amount      Float
+  amount      Decimal  @db.Decimal(14, 2)
   method      String
   paymentDate DateTime @default(now())
   notes       String?
   createdAt   DateTime @default(now())
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  @@index([invoiceId])
   @@map("payments")
 }
 
@@ -242,7 +323,7 @@ model Transaction {
   type        String
   vendorId    String?
   projectId   String?
-  amount      Float
+  amount      Decimal  @db.Decimal(14, 2)
   description String
   date        DateTime @default(now())
   notes       String?
@@ -253,6 +334,9 @@ model Transaction {
   project     Project? @relation(fields: [projectId], references: [id])
   vendor      Vendor?  @relation(fields: [vendorId], references: [id])
 
+  @@index([clientId])
+  @@index([projectId])
+  @@index([vendorId])
   @@map("transactions")
 }
 
@@ -262,7 +346,7 @@ model Purchase {
   projectId    String
   purchaseNo   String    @unique
   items        String
-  amount       Float
+  amount       Decimal   @db.Decimal(14, 2)
   status       String    @default("pending")
   purchaseDate DateTime  @default(now())
   dueDate      DateTime?
@@ -272,5 +356,7 @@ model Purchase {
   project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   vendor       Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
+  @@index([projectId])
+  @@index([vendorId])
   @@map("purchases")
 }

@@ -53,6 +53,7 @@ export default function RootLayout({
                   <li><a href="/invoices" className={navLinkClass}>Invoices</a></li>
                   <li><a href="/quotations" className={navLinkClass}>Quotations</a></li>
                   <li><a href="/transactions" className={navLinkClass}>Transactions</a></li>
+                  <li><a href="/admin" className={navLinkClass}>Admin</a></li>
                   <li className="flex"><LogoutButton /></li>
                 </ul>
               </div>

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { apiError } from '@/lib/api-error'
+import { calculateDocumentTotals, money } from '@/lib/money'
 import { normalizeTextField } from '@/lib/text-format'
+import { quotationSchema } from '@/lib/validation'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
 export async function PUT(
@@ -8,8 +11,26 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json()
-    const { items, ...quotationFields } = body
+    const body = quotationSchema.parse(await request.json())
+    const items = body.items.map((item) => ({
+      id: item.id,
+      area: item.area,
+      category: item.category,
+      description: normalizeTextField(item.description),
+      quantity: Number(item.quantity),
+      lengthCm: item.lengthCm ?? null,
+      widthCm: item.widthCm ?? null,
+      rate: item.rate === undefined || item.rate === null ? null : money(item.rate),
+      areaSqFt: item.areaSqFt ?? null,
+      total: money(item.total ?? 0),
+    }))
+    const subtotal = items.reduce((sum, item) => sum.add(item.total), money(0))
+    const totals = calculateDocumentTotals({
+      subtotal,
+      executionFeePercent: body.executionFeePercent,
+      gstRate: body.gstRate,
+      gstType: body.gstType,
+    })
 
     // Fetch current quotation to check status and client changes
     const currentQuotation = await prisma.quotation.findUnique({
@@ -22,10 +43,25 @@ export async function PUT(
     }
 
     const quotation = await prisma.$transaction(async (tx) => {
-      const data: any = {
-        ...quotationFields,
-        executionFeePercent: Number(quotationFields.executionFeePercent) || 0,
-        notes: normalizeTextField(quotationFields.notes),
+      const data = {
+        quotationNo: body.quotationNo,
+        clientId: body.clientId,
+        projectId: body.projectId,
+        issueDate: body.issueDate ? new Date(body.issueDate) : undefined,
+        dueDate: body.dueDate ? new Date(body.dueDate) : null,
+        subtotal: totals.subtotal,
+        executionFeePercent: totals.executionFeePercent,
+        executionFeeAmount: totals.executionFeeAmount,
+        taxableAmount: totals.taxableAmount,
+        gstType: totals.gstType,
+        gstRate: totals.gstRate,
+        cgstAmount: totals.cgstAmount,
+        sgstAmount: totals.sgstAmount,
+        igstAmount: totals.igstAmount,
+        amount: totals.amount,
+        placeOfSupply: normalizeTextField(body.placeOfSupply),
+        status: body.status,
+        notes: normalizeTextField(body.notes),
       }
 
       await tx.quotation.update({
@@ -33,59 +69,47 @@ export async function PUT(
         data,
       })
 
-      if (items) {
-        const existingItems = await tx.quotationItem.findMany({
-          where: { quotationId: params.id },
-          select: { id: true },
+      const existingItems = await tx.quotationItem.findMany({
+        where: { quotationId: params.id },
+        select: { id: true },
+      })
+
+      const existingItemIds = new Set(existingItems.map((item) => item.id))
+      const nextItemIds = new Set<string>()
+
+      for (const item of items) {
+        const { id, ...normalizedItem } = item
+
+        if (id && existingItemIds.has(id)) {
+          nextItemIds.add(id)
+          await tx.quotationItem.update({
+            where: { id },
+            data: normalizedItem,
+          })
+          continue
+        }
+
+        const createdItem = await tx.quotationItem.create({
+          data: {
+            quotationId: params.id,
+            ...normalizedItem,
+          },
         })
+        nextItemIds.add(createdItem.id)
+      }
 
-        const existingItemIds = new Set(existingItems.map((item) => item.id))
-        const nextItemIds = new Set<string>()
+      const removedItemIds = existingItems
+        .map((item) => item.id)
+        .filter((itemId) => !nextItemIds.has(itemId))
 
-        for (const item of items as any[]) {
-          const normalizedItem = {
-            area: item.area,
-            category: item.category,
-            description: normalizeTextField(item.description),
-            quantity: Number(item.quantity) || 0,
-            lengthCm: item.lengthCm !== undefined ? Number(item.lengthCm) || 0 : null,
-            widthCm: item.widthCm !== undefined ? Number(item.widthCm) || 0 : null,
-            rate: item.rate !== undefined ? Number(item.rate) || 0 : null,
-            areaSqFt: item.areaSqFt !== undefined ? Number(item.areaSqFt) || 0 : null,
-            total: Number(item.total) || 0,
-          }
-
-          if (item.id && existingItemIds.has(item.id)) {
-            nextItemIds.add(item.id)
-            await tx.quotationItem.update({
-              where: { id: item.id },
-              data: normalizedItem,
-            })
-            continue
-          }
-
-          const createdItem = await tx.quotationItem.create({
-            data: {
-              quotationId: params.id,
-              ...normalizedItem,
+      if (removedItemIds.length > 0) {
+        await tx.quotationItem.deleteMany({
+          where: {
+            id: {
+              in: removedItemIds,
             },
-          })
-          nextItemIds.add(createdItem.id)
-        }
-
-        const removedItemIds = existingItems
-          .map((item) => item.id)
-          .filter((itemId) => !nextItemIds.has(itemId))
-
-        if (removedItemIds.length > 0) {
-          await tx.quotationItem.deleteMany({
-            where: {
-              id: {
-                in: removedItemIds,
-              },
-            },
-          })
-        }
+          },
+        })
       }
 
       const quotationWithItems = await tx.quotation.findUnique({
@@ -101,8 +125,8 @@ export async function PUT(
       const newClientId = quotationWithItems.clientId
 
       if (currentQuotation.status === 'accepted' && quotationWithItems.status === 'accepted') {
-        const diff = quotationWithItems.amount - currentQuotation.amount
-        if (diff !== 0 && newClientId) {
+        const diff = quotationWithItems.amount.sub(currentQuotation.amount)
+        if (!diff.isZero() && newClientId) {
           await tx.client.update({
             where: { id: newClientId },
             data: {
@@ -145,7 +169,7 @@ export async function PUT(
 
     return NextResponse.json(quotation)
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update quotation' }, { status: 500 })
+    return apiError(error, 'Failed to update quotation')
   }
 }
 
