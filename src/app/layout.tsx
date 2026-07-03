@@ -29,14 +29,26 @@ export default function RootLayout({
             <div className="flex min-w-0 flex-col gap-5">
               <div className="grid min-w-0 gap-5 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center lg:grid-cols-[250px_minmax(0,1fr)]">
                 <div className="mx-auto flex h-[120px] w-full max-w-[220px] items-center justify-center overflow-hidden rounded-[22px] border border-[#d7b36c]/45 bg-[#1d2330] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:h-[138px] lg:h-[160px] lg:max-w-none">
-                  <Image
-                    src="/dashboard-logo.png"
-                    alt={`${firmName} logo`}
-                    width={1120}
-                    height={768}
-                    priority
-                    className="h-[116%] w-[116%] object-contain object-center"
-                  />
+                  {session ? (
+                    <Image
+                      src="/dashboard-logo.png"
+                      alt={`${firmName} logo`}
+                      width={1120}
+                      height={768}
+                      priority
+                      className="h-[116%] w-[116%] object-contain object-center"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[radial-gradient(circle_at_top,#31557e_0%,#1b2f4d_45%,#121c2e_100%)] px-5 text-center">
+                      <div className="grid h-16 w-16 place-items-center rounded-2xl border border-[#f4e5c6]/45 bg-[#f4e5c6] text-2xl font-black tracking-[0.04em] text-[#173b5d] shadow-[0_18px_36px_rgba(0,0,0,0.22)] sm:h-20 sm:w-20 sm:text-3xl">
+                        IO
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-[#d7b36c]">InteriorOps</p>
+                        <p className="mt-1 text-sm font-semibold text-[#f6f8fb] sm:text-base">Suite</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="min-w-0 self-center text-center sm:text-left">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-[#c3cfdf] sm:text-[12px] sm:tracking-[0.5em]">{subtitle}</p>
