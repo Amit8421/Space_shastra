@@ -101,12 +101,15 @@ export async function provisionFirmSchema(schemaName: string) {
   const quotedSchema = `"${schemaName}"`
   const statements = splitSqlStatements(TENANT_SCHEMA_SQL)
 
-  await platformPrisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS ${quotedSchema}`)
-    await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${quotedSchema}`)
+  await platformPrisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS ${quotedSchema}`)
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${quotedSchema}`)
 
-    for (const statement of statements) {
-      await tx.$executeRawUnsafe(statement)
-    }
-  })
+      for (const statement of statements) {
+        await tx.$executeRawUnsafe(statement)
+      }
+    },
+    { maxWait: 10000, timeout: 30000 },
+  )
 }
