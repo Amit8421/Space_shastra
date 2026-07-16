@@ -2033,7 +2033,6 @@ export default function QuotationsPage() {
                             return sortedAreas.map((areaKey) => {
                               const items = grouped[areaKey]
                               const colors = getRoomColor(areaKey)
-                              const displayArea = items[0].area || areaKey.split('').map((c, i) => i === 0 ? c.toUpperCase() : c).join('')
                               
                               return (
                                 <Fragment key={areaKey}>
@@ -2045,7 +2044,7 @@ export default function QuotationsPage() {
                                       </div>
                                     </td>
                                   </tr>
-                                  {getSortedQuotationItemsWithIndex(items).map(({ item, originalIndex: sortedIndex }) => {
+                                  {getSortedQuotationItemsWithIndex(items).map(({ item }) => {
                                     const originalIndex = quotationItems.findIndex(
                                       (qi) => qi.id === item.id && qi.description === item.description && 
                                              qi.category === item.category && qi.area === item.area
