@@ -105,6 +105,20 @@ const FURNITURE_AREA_ORDER = [
   'guest bed room',
   'kids room',
 ]
+
+// Color scheme for room identification
+const ROOM_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  'entrance area': { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-800' },
+  'living room': { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-800' },
+  'master bed room': { bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-800' },
+  'guest bed room': { bg: 'bg-pink-50', border: 'border-pink-300', text: 'text-pink-800' },
+  'kids room': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-800' },
+  'dining area': { bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-800' },
+  'balcony': { bg: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-800' },
+  'kitchen': { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800' },
+  'full flat': { bg: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-800' },
+}
+
 const QUOTATION_NOTES = [
   'Rates are based on the current discussion, floor plan, and site conditions available at the time of quotation.',
   'Final quantities and execution values may be refined after approved design, site measurement, and material selection.',
@@ -311,6 +325,25 @@ const getFurnitureDescriptionOptions = (area?: string | null) => {
   const areaKey = getCanonicalFurnitureArea(area)
   return furnitureDescriptionOptionsByArea[areaKey] || []
 }
+
+const getRoomColor = (area?: string | null) => {
+  const normalizedArea = (area ?? 'full flat').trim().toLowerCase()
+  return ROOM_COLORS[normalizedArea] || ROOM_COLORS['full flat']
+}
+
+const groupQuotationItemsByArea = (items: QuotationItem[]) => {
+  const grouped: Record<string, QuotationItem[]> = {}
+  items.forEach((item) => {
+    const area = isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat'
+    const areaKey = area.toLowerCase()
+    if (!grouped[areaKey]) {
+      grouped[areaKey] = []
+    }
+    grouped[areaKey].push(item)
+  })
+  return grouped
+}
+
 const getExecutionFeePercent = (quotation?: Pick<Quotation, 'executionFeePercent'> | null) =>
   quotation?.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT
 const getQuotationGrandTotal = (quotation: Pick<Quotation, 'amount' | 'executionFeePercent'>) => {
@@ -1989,119 +2022,152 @@ export default function QuotationsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {getSortedQuotationItemsWithIndex(quotationItems).map(({ item, originalIndex }) => (
-                            <tr key={`${originalIndex}-${item.id || item.description}`} className="border-t border-gray-200">
-                              <td className="px-3 py-2 text-sm">
-                                <select
-                                  value={item.category}
-                                  onChange={(e) => handleItemChange(originalIndex, 'category', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-                                >
-                                  {categoryOptions.map((category) => (
-                                    <option key={category} value={category}>{category}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2 text-sm">
-                                {isFurnitureCategory(item.category) ? (
-                                  <select
-                                    value={getCanonicalFurnitureArea(item.area)}
-                                    onChange={(e) => handleItemChange(originalIndex, 'area', e.target.value)}
-                                    className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-                                  >
-                                    {areaOptions.map((area) => (
-                                      <option key={area} value={area}>{area}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <span>-</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-sm">
-                                <input
-                                  type="text"
-                                  list={isFurnitureCategory(item.category) ? `furniture-description-options-${originalIndex}` : undefined}
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(originalIndex, 'description', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-                                />
-                                {isFurnitureCategory(item.category) && (
-                                  <datalist id={`furniture-description-options-${originalIndex}`}>
-                                    {getFurnitureDescriptionOptions(item.area).map((description) => (
-                                      <option key={description} value={description} />
-                                    ))}
-                                  </datalist>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={item.quantity}
-                                  onChange={(e) => handleItemChange(originalIndex, 'quantity', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.1"
-                                  value={item.lengthIn}
-                                  onChange={(e) => handleItemChange(originalIndex, 'lengthIn', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.1"
-                                  value={item.widthIn}
-                                  onChange={(e) => handleItemChange(originalIndex, 'widthIn', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.rate}
-                                  onChange={(e) => handleItemChange(originalIndex, 'rate', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                {(() => {
-                                  const lengthFt = Number(item.lengthIn || 0)
-                                  const widthFt = Number(item.widthIn || 0)
-                                  const areaSqFt = lengthFt > 0 && widthFt > 0 ? lengthFt * widthFt : 0
-                                  return areaSqFt > 0 ? areaSqFt.toFixed(2) : '-'
-                                })()}
-                              </td>
-                              <td className="px-3 py-2 text-right text-sm">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.total}
-                                  onChange={(e) => handleItemChange(originalIndex, 'total', e.target.value)}
-                                  className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => removeItem(originalIndex)}
-                                  className="text-red-600 hover:underline"
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {(() => {
+                            const grouped = groupQuotationItemsByArea(quotationItems)
+                            const sortedAreas = Object.keys(grouped).sort((a, b) => {
+                              const areaA = Object.keys(ROOM_COLORS).find(k => k.toLowerCase() === a) || a
+                              const areaB = Object.keys(ROOM_COLORS).find(k => k.toLowerCase() === b) || b
+                              return Object.keys(ROOM_COLORS).indexOf(areaA) - Object.keys(ROOM_COLORS).indexOf(areaB)
+                            })
+                            
+                            return sortedAreas.map((areaKey) => {
+                              const items = grouped[areaKey]
+                              const colors = getRoomColor(areaKey)
+                              const displayArea = items[0].area || areaKey.split('').map((c, i) => i === 0 ? c.toUpperCase() : c).join('')
+                              
+                              return (
+                                <Fragment key={areaKey}>
+                                  <tr className={`${colors.bg} border-t-2 ${colors.border} hover:opacity-80`}>
+                                    <td colSpan={10} className={`px-3 py-2 font-semibold ${colors.text}`}>
+                                      <div className={`flex items-center gap-2 py-1`}>
+                                        <span className={`inline-block w-3 h-3 rounded-full ${colors.border.replace('border', 'bg')}`}></span>
+                                        {items[0].area ? items[0].area.toUpperCase() : 'FULL FLAT'}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  {getSortedQuotationItemsWithIndex(items).map(({ item, originalIndex: sortedIndex }) => {
+                                    const originalIndex = quotationItems.findIndex(
+                                      (qi) => qi.id === item.id && qi.description === item.description && 
+                                             qi.category === item.category && qi.area === item.area
+                                    )
+                                    return (
+                                      <tr key={`${originalIndex}-${item.id || item.description}`} className={`border-t ${colors.bg}`}>
+                                        <td className="px-3 py-2 text-sm">
+                                          <select
+                                            value={item.category}
+                                            onChange={(e) => handleItemChange(originalIndex, 'category', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                          >
+                                            {categoryOptions.map((category) => (
+                                              <option key={category} value={category}>{category}</option>
+                                            ))}
+                                          </select>
+                                        </td>
+                                        <td className="px-3 py-2 text-sm">
+                                          {isFurnitureCategory(item.category) ? (
+                                            <select
+                                              value={getCanonicalFurnitureArea(item.area)}
+                                              onChange={(e) => handleItemChange(originalIndex, 'area', e.target.value)}
+                                              className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                            >
+                                              {areaOptions.map((area) => (
+                                                <option key={area} value={area}>{area}</option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            <span>-</span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2 text-sm">
+                                          <input
+                                            type="text"
+                                            list={isFurnitureCategory(item.category) ? `furniture-description-options-${originalIndex}` : undefined}
+                                            value={item.description}
+                                            onChange={(e) => handleItemChange(originalIndex, 'description', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                                          />
+                                          {isFurnitureCategory(item.category) && (
+                                            <datalist id={`furniture-description-options-${originalIndex}`}>
+                                              {getFurnitureDescriptionOptions(item.area).map((description) => (
+                                                <option key={description} value={description} />
+                                              ))}
+                                            </datalist>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value={item.quantity}
+                                            onChange={(e) => handleItemChange(originalIndex, 'quantity', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            value={item.lengthIn}
+                                            onChange={(e) => handleItemChange(originalIndex, 'lengthIn', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            value={item.widthIn}
+                                            onChange={(e) => handleItemChange(originalIndex, 'widthIn', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={item.rate}
+                                            onChange={(e) => handleItemChange(originalIndex, 'rate', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          {(() => {
+                                            const lengthFt = Number(item.lengthIn || 0)
+                                            const widthFt = Number(item.widthIn || 0)
+                                            const areaSqFt = lengthFt > 0 && widthFt > 0 ? lengthFt * widthFt : 0
+                                            return areaSqFt > 0 ? areaSqFt.toFixed(2) : '-'
+                                          })()}
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={item.total}
+                                            onChange={(e) => handleItemChange(originalIndex, 'total', e.target.value)}
+                                            className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                          <button
+                                            type="button"
+                                            onClick={() => removeItem(originalIndex)}
+                                            className="text-red-600 hover:underline"
+                                          >
+                                            Remove
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    )
+                                  })}
+                                </Fragment>
+                              )
+                            })
+                          })()}
                         </tbody>
                       </table>
                     </div>
