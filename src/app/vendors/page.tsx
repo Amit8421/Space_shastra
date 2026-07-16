@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getNormalizedFieldValue } from '@/lib/text-format'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
 interface Vendor {
   id: string
@@ -136,7 +137,7 @@ export default function VendorsPage() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetch('/api/vendors')
+      const res = await fetchWithAuth('/api/vendors')
       const data = await res.json()
       setVendors(data)
     } catch (error) {
@@ -148,7 +149,7 @@ export default function VendorsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -161,7 +162,7 @@ export default function VendorsPage() {
       const query = new URLSearchParams()
       query.set('vendorId', vendorId)
       if (projectId) query.set('projectId', projectId)
-      const res = await fetch(`/api/vendorAccounts?${query.toString()}`)
+      const res = await fetchWithAuth(`/api/vendorAccounts?${query.toString()}`)
       const data = await res.json()
       const accounts = Array.isArray(data) ? data : []
       if (!Array.isArray(data)) {
@@ -191,7 +192,7 @@ export default function VendorsPage() {
     }
 
     try {
-      const res = await fetch(`/api/vendorAccountEntries?vendorAccountId=${vendorAccountId}`)
+      const res = await fetchWithAuth(`/api/vendorAccountEntries?vendorAccountId=${vendorAccountId}`)
       const data = await res.json()
       setVendorEntries(data)
     } catch (error) {
@@ -215,7 +216,7 @@ export default function VendorsPage() {
       const url = editingVendor ? `/api/vendors/${editingVendor.id}` : '/api/vendors'
       const method = editingVendor ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -257,7 +258,7 @@ export default function VendorsPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this vendor?')) {
       try {
-        const res = await fetch(`/api/vendors/${id}`, {
+        const res = await fetchWithAuth(`/api/vendors/${id}`, {
           method: 'DELETE',
         })
 
@@ -336,7 +337,7 @@ export default function VendorsPage() {
     }
 
     try {
-      const res = await fetch('/api/vendorAccounts', {
+      const res = await fetchWithAuth('/api/vendorAccounts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -382,7 +383,7 @@ export default function VendorsPage() {
     if (!selectedAccountId) return
 
     try {
-      const res = await fetch('/api/vendorAccountEntries', {
+      const res = await fetchWithAuth('/api/vendorAccountEntries', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -431,7 +432,7 @@ export default function VendorsPage() {
     if (!selectedVendor || !selectedAccount) return
 
     try {
-      const res = await fetch(`/api/vendorAccounts/${selectedAccount.id}`, {
+      const res = await fetchWithAuth(`/api/vendorAccounts/${selectedAccount.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

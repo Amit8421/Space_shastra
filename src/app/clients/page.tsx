@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getNormalizedFieldValue } from '@/lib/text-format'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
 interface Client {
   id: string
@@ -73,7 +74,7 @@ export default function ClientsPage() {
 
   const fetchClients = async (selectedClientId?: string) => {
     try {
-      const res = await fetch('/api/clients')
+      const res = await fetchWithAuth('/api/clients')
       const data: Client[] = await res.json()
       setClients(data)
       if (selectedClientId) {
@@ -94,7 +95,7 @@ export default function ClientsPage() {
     try {
       const url = editingClient ? `/api/clients/${editingClient.id}` : '/api/clients'
       const method = editingClient ? 'PUT' : 'POST'
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +137,7 @@ export default function ClientsPage() {
   const handleDelete = async (clientId: string) => {
     if (!confirm('Delete this client?')) return
     try {
-      const res = await fetch(`/api/clients/${clientId}`, {
+      const res = await fetchWithAuth(`/api/clients/${clientId}`, {
         method: 'DELETE',
       })
       if (res.ok) {
@@ -158,7 +159,7 @@ export default function ClientsPage() {
 
   const fetchClientTransactions = async (clientId: string) => {
     try {
-      const res = await fetch(`/api/transactions?clientId=${clientId}`)
+      const res = await fetchWithAuth(`/api/transactions?clientId=${clientId}`)
       const data = await res.json()
       setAccountTransactions(Array.isArray(data) ? data : [])
     } catch (error) {
@@ -169,7 +170,7 @@ export default function ClientsPage() {
 
   const fetchClientProjects = async (clientId: string) => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       const projects = Array.isArray(data) ? data.filter((project: Project) => project.clientId === clientId) : []
       setClientProjects(projects)
@@ -264,7 +265,7 @@ export default function ClientsPage() {
     if (amount <= 0) return
 
     try {
-      const res = await fetch('/api/transactions', {
+      const res = await fetchWithAuth('/api/transactions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -391,7 +392,7 @@ export default function ClientsPage() {
               setReconcileMessage('')
               setReconciling(true)
               try {
-                const res = await fetch('/api/clients/reconcile', { method: 'POST' })
+                const res = await fetchWithAuth('/api/clients/reconcile', { method: 'POST' })
                 if (res.ok) {
                   const data = await res.json()
                   await fetchClients()

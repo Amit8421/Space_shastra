@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { getNormalizedFieldValue } from '@/lib/text-format'
 
 interface Project {
@@ -139,7 +140,7 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -151,7 +152,7 @@ export default function ProjectsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients')
+      const res = await fetchWithAuth('/api/clients')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -165,7 +166,7 @@ export default function ProjectsPage() {
       const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
       const method = editingProject ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +210,7 @@ export default function ProjectsPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this project?')) {
       try {
-        const res = await fetch(`/api/projects/${id}`, {
+        const res = await fetchWithAuth(`/api/projects/${id}`, {
           method: 'DELETE',
         })
 
@@ -250,7 +251,7 @@ export default function ProjectsPage() {
     setAccountReport(null)
 
     try {
-      const res = await fetch(`/api/projects/${project.id}/account-report`)
+      const res = await fetchWithAuth(`/api/projects/${project.id}/account-report`)
       const data = await res.json()
       if (res.ok) {
         setAccountReport(data)

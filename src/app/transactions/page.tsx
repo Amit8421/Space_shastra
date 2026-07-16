@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { getNormalizedFieldValue } from '@/lib/text-format'
 
 interface Transaction {
@@ -76,7 +77,7 @@ export default function TransactionsPage() {
 
   const fetchTransactions = async () => {
     try {
-      const res = await fetch('/api/transactions')
+      const res = await fetchWithAuth('/api/transactions')
       const data = await res.json()
       setTransactions(data)
     } catch (error) {
@@ -88,7 +89,7 @@ export default function TransactionsPage() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetch('/api/vendors')
+      const res = await fetchWithAuth('/api/vendors')
       const data = await res.json()
       setVendors(data)
     } catch (error) {
@@ -98,7 +99,7 @@ export default function TransactionsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -108,7 +109,7 @@ export default function TransactionsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients')
+      const res = await fetchWithAuth('/api/clients')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -123,7 +124,7 @@ export default function TransactionsPage() {
     }
 
     try {
-      const res = await fetch(`/api/vendorAccounts?vendorId=${vendorId}`)
+      const res = await fetchWithAuth(`/api/vendorAccounts?vendorId=${vendorId}`)
       const data = await res.json()
       setVendorAccounts(Array.isArray(data) ? data : [])
     } catch (error) {
@@ -160,7 +161,7 @@ export default function TransactionsPage() {
         projectId: formData.projectId || undefined,
       }
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -207,7 +208,7 @@ export default function TransactionsPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this transaction?')) {
       try {
-        const res = await fetch(`/api/transactions/${id}`, {
+        const res = await fetchWithAuth(`/api/transactions/${id}`, {
           method: 'DELETE',
         })
 

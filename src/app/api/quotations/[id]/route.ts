@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import { normalizeTextField } from '@/lib/text-format'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
+export const maxDuration = 60
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -33,16 +35,15 @@ export async function PUT(
         data,
       })
 
-      if (items) {
+      if (Array.isArray(items)) {
         const existingItems = await tx.quotationItem.findMany({
           where: { quotationId: params.id },
           select: { id: true },
         })
 
         const existingItemIds = new Set(existingItems.map((item) => item.id))
-        const nextItemIds = new Set<string>()
-
-        for (const item of items as any[]) {
+        const nextExistingItemIds = new Set<string>()
+        const itemOperations = items.map((item: any) => {
           const normalizedItem = {
             area: item.area,
             category: item.category,
@@ -56,26 +57,26 @@ export async function PUT(
           }
 
           if (item.id && existingItemIds.has(item.id)) {
-            nextItemIds.add(item.id)
-            await tx.quotationItem.update({
+            nextExistingItemIds.add(item.id)
+            return tx.quotationItem.update({
               where: { id: item.id },
               data: normalizedItem,
             })
-            continue
           }
 
-          const createdItem = await tx.quotationItem.create({
+          return tx.quotationItem.create({
             data: {
               quotationId: params.id,
               ...normalizedItem,
             },
           })
-          nextItemIds.add(createdItem.id)
-        }
+        })
+
+        await Promise.all(itemOperations)
 
         const removedItemIds = existingItems
           .map((item) => item.id)
-          .filter((itemId) => !nextItemIds.has(itemId))
+          .filter((itemId) => !nextExistingItemIds.has(itemId))
 
         if (removedItemIds.length > 0) {
           await tx.quotationItem.deleteMany({
@@ -99,8 +100,32 @@ export async function PUT(
 
       const oldClientId = currentQuotation.clientId
       const newClientId = quotationWithItems.clientId
+      const wasAccepted = currentQuotation.status === 'accepted'
+      const isAccepted = quotationWithItems.status === 'accepted'
 
-      if (currentQuotation.status === 'accepted' && quotationWithItems.status === 'accepted') {
+      if (wasAccepted && oldClientId && (!isAccepted || oldClientId !== newClientId)) {
+        await tx.client.update({
+          where: { id: oldClientId },
+          data: {
+            balance: {
+              decrement: currentQuotation.amount,
+            },
+          },
+        })
+      }
+
+      if (isAccepted && newClientId && (!wasAccepted || oldClientId !== newClientId)) {
+        await tx.client.update({
+          where: { id: newClientId },
+          data: {
+            balance: {
+              increment: quotationWithItems.amount,
+            },
+          },
+        })
+      }
+
+      if (wasAccepted && isAccepted && oldClientId === newClientId) {
         const diff = quotationWithItems.amount - currentQuotation.amount
         if (diff !== 0 && newClientId) {
           await tx.client.update({
@@ -112,39 +137,24 @@ export async function PUT(
             },
           })
         }
-      } else {
-        if (currentQuotation.status === 'accepted' && oldClientId) {
-          await tx.client.update({
-            where: { id: oldClientId },
-            data: {
-              balance: {
-                decrement: currentQuotation.amount,
-              },
-            },
-          })
-        }
-        if (quotationWithItems.status === 'accepted' && newClientId) {
-          await tx.client.update({
-            where: { id: newClientId },
-            data: {
-              balance: {
-                increment: quotationWithItems.amount,
-              },
-            },
-          })
-        }
       }
 
-      await syncFurnitureVendorAccountsForProject(tx, quotationWithItems.projectId)
-      if (currentQuotation.projectId !== quotationWithItems.projectId) {
-        await syncFurnitureVendorAccountsForProject(tx, currentQuotation.projectId)
+      if (wasAccepted || isAccepted) {
+        await syncFurnitureVendorAccountsForProject(tx, quotationWithItems.projectId)
+        if (currentQuotation.projectId !== quotationWithItems.projectId) {
+          await syncFurnitureVendorAccountsForProject(tx, currentQuotation.projectId)
+        }
       }
 
       return quotationWithItems
+    }, {
+      maxWait: 10000,
+      timeout: 45000,
     })
 
     return NextResponse.json(quotation)
   } catch (error) {
+    console.error('Failed to update quotation:', error)
     return NextResponse.json({ error: 'Failed to update quotation' }, { status: 500 })
   }
 }

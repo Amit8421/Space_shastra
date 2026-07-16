@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { getNormalizedFieldValue } from '@/lib/text-format'
 
 interface Purchase {
@@ -51,7 +52,7 @@ export default function PurchasesPage() {
 
   const fetchPurchases = async () => {
     try {
-      const res = await fetch('/api/purchases')
+      const res = await fetchWithAuth('/api/purchases')
       const data = await res.json()
       setPurchases(data)
     } catch (error) {
@@ -63,7 +64,7 @@ export default function PurchasesPage() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetch('/api/vendors')
+      const res = await fetchWithAuth('/api/vendors')
       const data = await res.json()
       setVendors(data)
     } catch (error) {
@@ -73,7 +74,7 @@ export default function PurchasesPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -93,7 +94,7 @@ export default function PurchasesPage() {
         purchaseNo: formData.purchaseNo || `PO-${Date.now()}`
       }
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -139,7 +140,7 @@ export default function PurchasesPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this purchase order?')) {
       try {
-        const res = await fetch(`/api/purchases/${id}`, {
+        const res = await fetchWithAuth(`/api/purchases/${id}`, {
           method: 'DELETE',
         })
 

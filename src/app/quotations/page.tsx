@@ -1006,6 +1006,8 @@ export default function QuotationsPage() {
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
   const [importPreview, setImportPreview] = useState<ImportedQuotationPreview | null>(null)
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [formData, setFormData] = useState({
     quotationNo: '',
     clientId: '',
@@ -1024,9 +1026,19 @@ export default function QuotationsPage() {
     fetchProjects()
   }, [])
 
+  useEffect(() => {
+    if (!saveMessage || saveMessage.type !== 'success') return
+
+    const timeout = window.setTimeout(() => {
+      setSaveMessage(null)
+    }, 5000)
+
+    return () => window.clearTimeout(timeout)
+  }, [saveMessage])
+
   const fetchQuotations = async () => {
     try {
-      const res = await fetch('/api/quotations')
+      const res = await fetch('/api/quotations', { credentials: 'include' })
       const data = await res.json()
       setQuotations(data)
     } catch (error) {
@@ -1038,7 +1050,7 @@ export default function QuotationsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients')
+      const res = await fetch('/api/clients', { credentials: 'include' })
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -1048,7 +1060,7 @@ export default function QuotationsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetch('/api/projects', { credentials: 'include' })
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -1146,6 +1158,7 @@ export default function QuotationsPage() {
       const res = await fetch('/api/quotations/import', {
         method: 'POST',
         body: uploadData,
+        credentials: 'include',
       })
 
       const data = await res.json()
@@ -1294,9 +1307,14 @@ export default function QuotationsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saveLoading) return
+
     try {
+      setSaveLoading(true)
+      setSaveMessage(null)
       const url = editingQuotation ? `/api/quotations/${editingQuotation.id}` : '/api/quotations'
       const method = editingQuotation ? 'PUT' : 'POST'
+      const isEditing = Boolean(editingQuotation)
 
       const itemData = quotationItems.map((item) => {
         const quantity = parseFloat(item.quantity) || 0
@@ -1331,18 +1349,41 @@ export default function QuotationsPage() {
         items: itemData,
       }
 
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 60000)
+
       const res = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(submitData),
+        signal: controller.signal,
+        credentials: 'include',
       })
+      window.clearTimeout(timeoutId)
+      const savedQuotation = await res.json().catch(() => null)
 
       if (res.ok) {
+        if (savedQuotation) {
+          setQuotations((currentQuotations) => {
+            if (isEditing) {
+              return currentQuotations.map((quotation) =>
+                quotation.id === savedQuotation.id ? savedQuotation : quotation,
+              )
+            }
+
+            return [savedQuotation, ...currentQuotations]
+          })
+        }
+
         setShowModal(false)
         setEditingQuotation(null)
         setCopySourceQuotation(null)
+        setSaveMessage({
+          type: 'success',
+          text: isEditing ? 'Quotation updated successfully.' : 'Quotation created successfully.',
+        })
         setFormData({
           quotationNo: '',
           clientId: '',
@@ -1354,16 +1395,29 @@ export default function QuotationsPage() {
         })
         setQuotationItems([])
         setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
-        fetchQuotations()
       } else {
+        setSaveMessage({
+          type: 'error',
+          text: savedQuotation?.error || 'Failed to save quotation. Please try again.',
+        })
         console.error('Failed to save quotation')
       }
     } catch (error) {
+      const isTimeout = error instanceof DOMException && error.name === 'AbortError'
+      setSaveMessage({
+        type: 'error',
+        text: isTimeout
+          ? 'The update is taking too long. Please try again after a moment.'
+          : 'Failed to save quotation. Please check your connection and try again.',
+      })
       console.error('Error saving quotation:', error)
+    } finally {
+      setSaveLoading(false)
     }
   }
 
   const handleEdit = (quotation: Quotation) => {
+    setSaveMessage(null)
     setEditingQuotation(quotation)
     setCopySourceQuotation(null)
     setFormData({
@@ -1391,6 +1445,7 @@ export default function QuotationsPage() {
   }
 
   const handleCopyQuotation = (quotation: Quotation) => {
+    setSaveMessage(null)
     const copiedItems = quotation.items.map((item) => ({
       category: item.category || 'Painting',
       area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
@@ -1424,6 +1479,7 @@ export default function QuotationsPage() {
       try {
         const res = await fetch(`/api/quotations/${id}`, {
           method: 'DELETE',
+          credentials: 'include',
         })
 
         if (res.ok) {
@@ -1445,6 +1501,7 @@ export default function QuotationsPage() {
   }
 
   const openAddModal = () => {
+    setSaveMessage(null)
     setEditingQuotation(null)
     setCopySourceQuotation(null)
     setFormData({
@@ -1536,6 +1593,19 @@ export default function QuotationsPage() {
           </button>
         </div>
       </div>
+
+      {saveMessage && (
+        <div
+          className={`mb-6 rounded-lg border px-4 py-3 text-sm font-medium ${
+            saveMessage.type === 'success'
+              ? 'border-green-200 bg-green-50 text-green-800'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}
+          role="status"
+        >
+          {saveMessage.text}
+        </div>
+      )}
 
       {showImportModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -1708,6 +1778,16 @@ export default function QuotationsPage() {
             {copySourceQuotation && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                 Copying items and notes from quotation <strong>{copySourceQuotation.quotationNo}</strong>. Select the new client and project, then save to create a separate quotation.
+              </div>
+            )}
+            {saveLoading && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900" role="status">
+                {editingQuotation ? 'Updating quotation. Please wait...' : 'Saving quotation. Please wait...'}
+              </div>
+            )}
+            {saveMessage?.type === 'error' && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
+                {saveMessage.text}
               </div>
             )}
             <form onSubmit={handleSubmit}>
@@ -2058,19 +2138,29 @@ export default function QuotationsPage() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
+                  disabled={saveLoading}
                   onClick={() => {
                     setShowModal(false)
                     setCopySourceQuotation(null)
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-black text-white rounded hover:bg-gray-900"
+                  disabled={saveLoading}
+                  className="px-5 py-2 bg-black text-white rounded hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {editingQuotation ? 'Update Quotation' : copySourceQuotation ? 'Create Copied Quotation' : 'Create Quotation'}
+                  {saveLoading
+                    ? editingQuotation
+                      ? 'Updating...'
+                      : 'Saving...'
+                    : editingQuotation
+                      ? 'Update Quotation'
+                      : copySourceQuotation
+                        ? 'Create Copied Quotation'
+                        : 'Create Quotation'}
                 </button>
               </div>
             </form>

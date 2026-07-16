@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { getNormalizedFieldValue, normalizeCapitalizedText } from '@/lib/text-format'
 
 interface InvoiceItem {
@@ -69,7 +70,7 @@ export default function InvoicesPage() {
 
   const fetchInvoices = async () => {
     try {
-      const res = await fetch('/api/invoices')
+      const res = await fetchWithAuth('/api/invoices')
       const data = await res.json()
       setInvoices(data)
     } catch (error) {
@@ -81,7 +82,7 @@ export default function InvoicesPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients')
+      const res = await fetchWithAuth('/api/clients')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -91,7 +92,7 @@ export default function InvoicesPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetchWithAuth('/api/projects')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -164,7 +165,7 @@ export default function InvoicesPage() {
         items: itemData,
       }
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +217,7 @@ export default function InvoicesPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this invoice?')) {
       try {
-        const res = await fetch(`/api/invoices/${id}`, {
+        const res = await fetchWithAuth(`/api/invoices/${id}`, {
           method: 'DELETE',
         })
 

@@ -9,3 +9,4 @@ logs
 .next-dev.*
 .tmp_*
 *.tsbuildinfo
+supabase
