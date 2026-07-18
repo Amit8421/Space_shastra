@@ -2209,7 +2209,7 @@ export default function QuotationsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-1 mb-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Notes</label>
                   <textarea
@@ -2218,15 +2218,6 @@ export default function QuotationsPage() {
                     onChange={handleInputChange}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Total Amount</label>
-                  <input
-                    type="text"
-                    value={calculateTotal(quotationItems).toFixed(2)}
-                    readOnly
-                    className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded"
                   />
                 </div>
               </div>
