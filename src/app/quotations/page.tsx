@@ -2175,28 +2175,36 @@ export default function QuotationsPage() {
 
                 <div className="mt-3 text-right space-y-2 border-t pt-3">
                   {(() => {
-                    const subtotal = calculateTotal(quotationItems)
-                    const executionFeePercent = Number(formData.executionFeePercent) || 0
-                    const executionFee = subtotal * (executionFeePercent / 100)
-                    const grandTotal = subtotal + executionFee
-                    
-                    return (
-                      <>
+                    try {
+                      const subtotal = calculateTotal(quotationItems) || 0
+                      const executionFeePercent = formData?.executionFeePercent ? Number(formData.executionFeePercent) : 0
+                      const executionFee = subtotal * (executionFeePercent / 100)
+                      const grandTotal = subtotal + executionFee
+                      
+                      return (
+                        <>
+                          <p className="text-sm font-semibold text-gray-700">
+                            Current subtotal: ₹{subtotal.toFixed(2)}
+                          </p>
+                          {executionFeePercent > 0 && (
+                            <>
+                              <p className="text-sm text-gray-600">
+                                Execution fee ({executionFeePercent}%): ₹{executionFee.toFixed(2)}
+                              </p>
+                              <p className="text-lg font-bold text-black border-t pt-2">
+                                Final Total: ₹{grandTotal.toFixed(2)}
+                              </p>
+                            </>
+                          )}
+                        </>
+                      )
+                    } catch (error) {
+                      return (
                         <p className="text-sm font-semibold text-gray-700">
-                          Current subtotal: ₹{subtotal.toFixed(2)}
+                          Current subtotal: ₹{calculateTotal(quotationItems)?.toFixed(2) || '0.00'}
                         </p>
-                        {executionFeePercent > 0 && (
-                          <>
-                            <p className="text-sm text-gray-600">
-                              Execution fee ({executionFeePercent}%): ₹{executionFee.toFixed(2)}
-                            </p>
-                            <p className="text-lg font-bold text-black border-t pt-2">
-                              Final Total: ₹{grandTotal.toFixed(2)}
-                            </p>
-                          </>
-                        )}
-                      </>
-                    )
+                      )
+                    }
                   })()}
                 </div>
               </div>
