@@ -442,7 +442,7 @@ const getQuotationSections = (items: ComputedQuotationItem[]): QuotationSection[
   return sections
 }
 
-function buildQuotationPrintHtml(quotation: Quotation) {
+function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false) {
   const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard-logo.png` : ''
   const qrUrl = typeof window !== 'undefined' ? `${window.location.origin}/payment-qr.png` : ''
   const items = getComputedQuotationItems(quotation.items)
@@ -460,6 +460,7 @@ function buildQuotationPrintHtml(quotation: Quotation) {
       let itemCounter = 0
       const renderItemRow = (item: ComputedQuotationItem) => {
         itemCounter += 1
+        const rateColumn = showRate ? `<td class="amount">${formatCurrencyWithSymbol(item.rate)}</td>` : ''
         return `
           <tr>
             <td class="center">${sectionIndex + 1}.${itemCounter}</td>
@@ -470,6 +471,7 @@ function buildQuotationPrintHtml(quotation: Quotation) {
             <td class="center">${formatOptionalNumber(item.lengthIn)}</td>
             <td class="center">${formatOptionalNumber(item.widthIn)}</td>
             <td class="center">${formatOptionalNumber(item.unitValue)}</td>
+            ${rateColumn}
             <td class="amount">${formatCurrencyWithSymbol(item.total)}</td>
           </tr>
         `
@@ -891,23 +893,24 @@ function buildQuotationPrintHtml(quotation: Quotation) {
                   <th style="width:68px;">Length</th>
                   <th style="width:68px;">Width</th>
                   <th style="width:74px;">Unit</th>
+                  ${showRate ? '<th style="width:100px;">Rate</th>' : ''}
                   <th style="width:112px;">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 ${groupedRows}
                 <tr>
-                  <td colspan="5" class="summary-label amount">Total Amount</td>
+                  <td colspan="${showRate ? 6 : 5}" class="summary-label amount">Total Amount</td>
                   <td class="summary-accent amount">${formatCurrencyWithSymbol(subtotal)}</td>
                 </tr>
                 <tr>
                   <td class="center">*</td>
-                  <td colspan="3">Interior execution fees / supervision / designing</td>
+                  <td colspan="${showRate ? 4 : 3}">Interior execution fees / supervision / designing</td>
                   <td class="center">${executionFeePercent.toFixed(2).replace(/\.00$/, '')}%</td>
                   <td class="amount">${formatCurrencyWithSymbol(executionFee)}</td>
                 </tr>
                 <tr>
-                  <td colspan="5" class="summary-accent center">Grand Total</td>
+                  <td colspan="${showRate ? 6 : 5}" class="summary-accent center">Grand Total</td>
                   <td class="summary-final amount">${formatCurrencyWithSymbol(grandTotal)}</td>
                 </tr>
               </tbody>
@@ -1052,6 +1055,7 @@ export default function QuotationsPage() {
   })
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
   const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+  const [showRateInReport, setShowRateInReport] = useState(false)
 
   useEffect(() => {
     fetchQuotations()
@@ -1561,7 +1565,7 @@ export default function QuotationsPage() {
     const printWindow = window.open('', '_blank', 'width=1000,height=900')
     if (!printWindow) return
 
-    printWindow.document.write(buildQuotationPrintHtml(viewingQuotation))
+    printWindow.document.write(buildQuotationPrintHtml(viewingQuotation, showRateInReport))
     printWindow.document.close()
 
     const waitForImagesAndPrint = () => {
@@ -1898,6 +1902,18 @@ export default function QuotationsPage() {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={showRateInReport}
+                    onChange={(e) => setShowRateInReport(e.target.checked)}
+                    className="w-4 h-4 border border-gray-300 rounded cursor-pointer"
+                  />
+                  Show Rate Column in Print Report
+                </label>
               </div>
 
               <div className="mb-4">
