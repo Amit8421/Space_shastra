@@ -482,7 +482,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             .map((group) => `
               <tr class="area-row">
                 <td></td>
-                <td colspan="5">${escapeHtml(group.area)}</td>
+                <td colspan="${showRate ? 5 : 4}">${escapeHtml(group.area)}</td>
               </tr>
               ${group.items.map(renderItemRow).join('')}
             `)
@@ -491,7 +491,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
 
       return `
         <tr class="section-row">
-          <td colspan="6">
+          <td colspan="${showRate ? 7 : 6}">
             <div class="section-title">${escapeHtml(section.title)}</div>
           </td>
         </tr>
@@ -646,6 +646,8 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
           }
           .quotation-table {
             margin-top: 8px;
+            table-layout: auto;
+            width: 100%;
           }
           .quotation-table thead th {
             background: linear-gradient(180deg, #5d8eb5 0%, #416f97 100%);
@@ -654,6 +656,10 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            padding: 5px 4px !important;
+          }
+          .quotation-table tbody td {
+            padding: 5px 4px !important;
           }
           .center { text-align: center; }
           .amount { text-align: right; white-space: nowrap; }
@@ -888,13 +894,13 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             <table class="quotation-table">
               <thead>
                 <tr>
-                  <th style="width:52px;">Sr No</th>
-                  <th>Item Description</th>
-                  <th style="width:68px;">Length</th>
-                  <th style="width:68px;">Width</th>
-                  <th style="width:74px;">Unit</th>
-                  ${showRate ? '<th style="width:100px;">Rate</th>' : ''}
-                  <th style="width:112px;">Amount</th>
+                  <th style="width:5%; min-width: 45px;">Sr No</th>
+                  <th style="width:auto; flex: 1;">Item Description</th>
+                  <th style="width:8%; min-width: 55px;">Length</th>
+                  <th style="width:8%; min-width: 55px;">Width</th>
+                  <th style="width:7%; min-width: 50px;">Unit</th>
+                  ${showRate ? '<th style="width:8%; min-width: 60px;">Rate</th>' : ''}
+                  <th style="width:10%; min-width: 70px;">Amount</th>
                 </tr>
               </thead>
               <tbody>
