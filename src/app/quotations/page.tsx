@@ -615,6 +615,8 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             border: 1px solid #c5d8e7;
             padding: 5px 6px;
             font-size: 10.2px;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           .quote-card td {
             background: rgba(255,255,255,0.98);
@@ -623,15 +625,33 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
           }
           .quote-card .label {
             color: #1f446b;
+            width: 15%;
+            flex-shrink: 0;
+          }
+          .quote-card td:last-child {
+            width: 85%;
+            word-break: break-word;
           }
           .label {
             background: linear-gradient(180deg, #f1f8fc 0%, #e3f0f8 100%);
             font-weight: 700;
-            white-space: nowrap;
             color: #29496c;
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-break: break-word;
           }
           .meta-grid {
             margin-top: 8px;
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+          }
+          .meta-grid td {
+            border: 1px solid #c5d8e7;
+            padding: 5px 6px;
+            font-size: 10.2px;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           .intro {
             margin-top: 8px;
@@ -648,6 +668,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             margin-top: 8px;
             table-layout: auto;
             width: 100%;
+            word-wrap: break-word;
           }
           .quotation-table thead th {
             background: linear-gradient(180deg, #5d8eb5 0%, #416f97 100%);
@@ -656,15 +677,23 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            padding: 5px 4px !important;
+            padding: 6px 4px !important;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.15;
           }
           .quotation-table tbody td {
-            padding: 5px 4px !important;
+            padding: 6px 4px !important;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           .center { text-align: center; }
           .amount { text-align: right; white-space: nowrap; }
           .section-row td {
             background: linear-gradient(180deg, #f0f7fc 0%, #e2eff8 100%);
+            word-break: break-word;
+            padding: 6px 4px !important;
           }
           .section-title {
             font-size: 10.3px;
@@ -672,6 +701,9 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             letter-spacing: 0.05em;
             text-transform: uppercase;
             color: #1f446b;
+            word-break: break-word;
+            white-space: normal;
+            line-height: 1.2;
           }
           .area-row td {
             background: linear-gradient(180deg, #dff0fa 0%, #c9e1f2 100%);
@@ -680,6 +712,10 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             font-weight: 800;
             letter-spacing: 0.06em;
             text-transform: uppercase;
+            word-break: break-word;
+            white-space: normal;
+            padding: 6px 4px !important;
+            line-height: 1.2;
           }
           .item-title {
             font-weight: 700;
@@ -894,13 +930,13 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             <table class="quotation-table">
               <thead>
                 <tr>
-                  <th style="width:5%; min-width: 45px;">Sr No</th>
-                  <th style="width:auto; flex: 1;">Item Description</th>
-                  <th style="width:8%; min-width: 55px;">Length</th>
-                  <th style="width:8%; min-width: 55px;">Width</th>
-                  <th style="width:7%; min-width: 50px;">Unit</th>
-                  ${showRate ? '<th style="width:8%; min-width: 60px;">Rate</th>' : ''}
-                  <th style="width:10%; min-width: 70px;">Amount</th>
+                  <th style="width:5%; min-width: 35px;">Sr No</th>
+                  <th style="width:40%; min-width: 160px;">Item Description</th>
+                  <th style="width:7%; min-width: 40px;">Length</th>
+                  <th style="width:7%; min-width: 40px;">Width</th>
+                  <th style="width:6%; min-width: 35px;">Unit</th>
+                  ${showRate ? '<th style="width:8%; min-width: 50px;">Rate</th>' : ''}
+                  <th style="width:9%; min-width: 55px;">Amount</th>
                 </tr>
               </thead>
               <tbody>
