@@ -802,8 +802,10 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             margin-top: 8px;
             table-layout: fixed;
           }
-          .terms-table td:first-child {
+          .terms-table .terms-number-column {
             width: 30px;
+          }
+          .terms-table td:first-child {
             white-space: nowrap;
             word-break: normal;
             overflow-wrap: normal;
@@ -1033,6 +1035,10 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             </div>
 
             <table class="terms-table">
+              <colgroup>
+                <col class="terms-number-column" />
+                <col />
+              </colgroup>
               <tr>
                 <td colspan="2" class="terms-header">Terms and Conditions</td>
               </tr>
