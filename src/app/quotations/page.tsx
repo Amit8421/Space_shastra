@@ -493,7 +493,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             .map((group) => `
               <tr class="area-row">
                 <td></td>
-                <td colspan="${showRate ? 5 : 4}">${escapeHtml(group.area)}</td>
+                <td colspan="${showRate ? 6 : 5}">${escapeHtml(group.area)}</td>
               </tr>
               ${group.items.map(renderItemRow).join('')}
             `)
