@@ -454,6 +454,17 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
   const noteRows = getQuotationNoteLines(quotation.notes)
     .map((note) => `<li>${escapeHtml(note)}</li>`)
     .join('')
+  const quotationColumnGroup = `
+    <colgroup>
+      <col class="col-serial" />
+      <col class="col-description" />
+      <col class="col-length" />
+      <col class="col-width" />
+      <col class="col-unit" />
+      ${showRate ? '<col class="col-rate" />' : ''}
+      <col class="col-amount" />
+    </colgroup>
+  `
 
   const groupedRows = sections
     .map((section, sectionIndex) => {
@@ -462,7 +473,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
         itemCounter += 1
         const rateColumn = showRate ? `<td class="amount">${formatCurrencyWithSymbol(item.rate)}</td>` : ''
         return `
-          <tr>
+          <tr class="item-row">
             <td class="center">${sectionIndex + 1}.${itemCounter}</td>
             <td>
               <div class="item-title">${escapeHtml(item.description)}</div>
@@ -666,10 +677,23 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
           }
           .quotation-table {
             margin-top: 8px;
-            table-layout: auto;
+            table-layout: fixed;
             width: 100%;
             word-wrap: break-word;
           }
+          .quotation-table.without-rate .col-serial { width: 6.5%; }
+          .quotation-table.without-rate .col-description { width: 53%; }
+          .quotation-table.without-rate .col-length { width: 9%; }
+          .quotation-table.without-rate .col-width { width: 9%; }
+          .quotation-table.without-rate .col-unit { width: 8%; }
+          .quotation-table.without-rate .col-amount { width: 14.5%; }
+          .quotation-table.with-rate .col-serial { width: 6%; }
+          .quotation-table.with-rate .col-description { width: 47%; }
+          .quotation-table.with-rate .col-length { width: 8.5%; }
+          .quotation-table.with-rate .col-width { width: 8.5%; }
+          .quotation-table.with-rate .col-unit { width: 7%; }
+          .quotation-table.with-rate .col-rate { width: 11%; }
+          .quotation-table.with-rate .col-amount { width: 12%; }
           .quotation-table thead th {
             background: linear-gradient(180deg, #5d8eb5 0%, #416f97 100%);
             color: #f7f8fb;
@@ -688,8 +712,19 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
             word-break: break-word;
             overflow-wrap: break-word;
           }
+          .quotation-table .item-row td {
+            background: #f8fbfe;
+          }
           .center { text-align: center; }
-          .amount { text-align: right; white-space: nowrap; }
+          .amount {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+          }
+          .quotation-table .amount {
+            font-size: 9.4px;
+            letter-spacing: -0.01em;
+          }
           .section-row td {
             background: linear-gradient(180deg, #f0f7fc 0%, #e2eff8 100%);
             word-break: break-word;
@@ -765,6 +800,13 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
           }
           .terms-table {
             margin-top: 8px;
+            table-layout: fixed;
+          }
+          .terms-table td:first-child {
+            width: 30px;
+            white-space: nowrap;
+            word-break: normal;
+            overflow-wrap: normal;
           }
           .terms-header {
             background: linear-gradient(180deg, #5d8eb5 0%, #416f97 100%);
@@ -927,16 +969,17 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
               Thank you for giving us an opportunity to prepare your interior quotation. The estimate below is arranged in a clear work-wise and room-wise format so it remains easy to review, approve, and execute.
             </div>
 
-            <table class="quotation-table">
+            <table class="quotation-table ${showRate ? 'with-rate' : 'without-rate'}">
+              ${quotationColumnGroup}
               <thead>
                 <tr>
-                  <th style="width:5%; min-width: 35px;">Sr No</th>
-                  <th style="width:40%; min-width: 160px;">Item Description</th>
-                  <th style="width:7%; min-width: 40px;">Length</th>
-                  <th style="width:7%; min-width: 40px;">Width</th>
-                  <th style="width:6%; min-width: 35px;">Unit</th>
-                  ${showRate ? '<th style="width:8%; min-width: 50px;">Rate</th>' : ''}
-                  <th style="width:9%; min-width: 55px;">Amount</th>
+                  <th>Sr No</th>
+                  <th>Item Description</th>
+                  <th>Length</th>
+                  <th>Width</th>
+                  <th>Unit</th>
+                  ${showRate ? '<th>Rate</th>' : ''}
+                  <th>Amount</th>
                 </tr>
               </thead>
               <tbody>
