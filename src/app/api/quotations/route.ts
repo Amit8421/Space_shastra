@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      await syncFurnitureVendorAccountsForProject(tx, body.projectId)
+      if (body.status === 'accepted') {
+        await syncFurnitureVendorAccountsForProject(tx, body.projectId)
+      }
 
       return createdQuotation
     })

@@ -16,7 +16,6 @@ export async function PUT(
     // Fetch current quotation to check status and client changes
     const currentQuotation = await prisma.quotation.findUnique({
       where: { id: params.id },
-      include: { client: true },
     })
 
     if (!currentQuotation) {
@@ -36,15 +35,9 @@ export async function PUT(
       })
 
       if (Array.isArray(items)) {
-        const existingItems = await tx.quotationItem.findMany({
-          where: { quotationId: params.id },
-          select: { id: true },
-        })
-
-        const existingItemIds = new Set(existingItems.map((item) => item.id))
-        const nextExistingItemIds = new Set<string>()
-        const itemOperations = items.map((item: any) => {
-          const normalizedItem = {
+        const normalizedItems = items.map((item: any) => ({
+          id: typeof item.id === 'string' ? item.id : null,
+          data: {
             area: item.area,
             category: item.category,
             description: normalizeTextField(item.description),
@@ -54,38 +47,63 @@ export async function PUT(
             rate: item.rate !== undefined ? Number(item.rate) || 0 : null,
             areaSqFt: item.areaSqFt !== undefined ? Number(item.areaSqFt) || 0 : null,
             total: Number(item.total) || 0,
-          }
+          },
+        }))
 
-          if (item.id && existingItemIds.has(item.id)) {
-            nextExistingItemIds.add(item.id)
-            return tx.quotationItem.update({
-              where: { id: item.id },
-              data: normalizedItem,
+        if (currentQuotation.status !== 'accepted') {
+          await tx.quotationItem.deleteMany({
+            where: { quotationId: params.id },
+          })
+
+          if (normalizedItems.length > 0) {
+            await tx.quotationItem.createMany({
+              data: normalizedItems.map((item) => ({
+                quotationId: params.id,
+                ...item.data,
+              })),
             })
           }
-
-          return tx.quotationItem.create({
-            data: {
-              quotationId: params.id,
-              ...normalizedItem,
-            },
+        } else {
+          // Accepted quotation item IDs are retained because vendor furniture
+          // rates are linked to them.
+          const existingItems = await tx.quotationItem.findMany({
+            where: { quotationId: params.id },
+            select: { id: true },
           })
-        })
+          const existingItemIds = new Set(existingItems.map((item) => item.id))
+          const nextExistingItemIds = new Set<string>()
+          const itemOperations = normalizedItems.map((item) => {
+            if (item.id && existingItemIds.has(item.id)) {
+              nextExistingItemIds.add(item.id)
+              return tx.quotationItem.update({
+                where: { id: item.id },
+                data: item.data,
+              })
+            }
 
-        await Promise.all(itemOperations)
-
-        const removedItemIds = existingItems
-          .map((item) => item.id)
-          .filter((itemId) => !nextExistingItemIds.has(itemId))
-
-        if (removedItemIds.length > 0) {
-          await tx.quotationItem.deleteMany({
-            where: {
-              id: {
-                in: removedItemIds,
+            return tx.quotationItem.create({
+              data: {
+                quotationId: params.id,
+                ...item.data,
               },
-            },
+            })
           })
+
+          await Promise.all(itemOperations)
+
+          const removedItemIds = existingItems
+            .map((item) => item.id)
+            .filter((itemId) => !nextExistingItemIds.has(itemId))
+
+          if (removedItemIds.length > 0) {
+            await tx.quotationItem.deleteMany({
+              where: {
+                id: {
+                  in: removedItemIds,
+                },
+              },
+            })
+          }
         }
       }
 

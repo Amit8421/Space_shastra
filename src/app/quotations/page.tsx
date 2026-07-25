@@ -3,6 +3,9 @@
 import { Fragment, useEffect, useState } from 'react'
 import { getNormalizedFieldValue, normalizeCapitalizedText } from '@/lib/text-format'
 
+const SHOW_RATE_STORAGE_KEY = 'space-shashtra:quotation-show-rate'
+const QUOTATION_DRAFT_STORAGE_PREFIX = 'space-shashtra:quotation-draft:v1:'
+
 const furnitureDescriptionOptionsByArea: Record<string, string[]> = {
   'Living Room': [
     'Tv Unit',
@@ -215,6 +218,21 @@ interface ImportedQuotationPreview {
   notes: string
   warnings: string[]
   items: QuotationItem[]
+}
+
+interface QuotationFormDraft {
+  formData: {
+    quotationNo: string
+    clientId: string
+    projectId: string
+    amount: string
+    executionFeePercent: string
+    notes: string
+    status: string
+  }
+  items: QuotationItem[]
+  newItem: QuotationItem
+  savedAt: string
 }
 
 interface ComputedQuotationItem {
@@ -1147,11 +1165,22 @@ export default function QuotationsPage() {
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
   const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
   const [showRateInReport, setShowRateInReport] = useState(false)
+  const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
+  const [draftMessage, setDraftMessage] = useState('')
 
   useEffect(() => {
     fetchQuotations()
     fetchClients()
     fetchProjects()
+
+    try {
+      const savedShowRate = window.localStorage.getItem(SHOW_RATE_STORAGE_KEY)
+      if (savedShowRate !== null) {
+        setShowRateInReport(savedShowRate === 'true')
+      }
+    } catch (error) {
+      console.error('Failed to restore quotation print preference:', error)
+    }
   }, [])
 
   useEffect(() => {
@@ -1163,6 +1192,28 @@ export default function QuotationsPage() {
 
     return () => window.clearTimeout(timeout)
   }, [saveMessage])
+
+  useEffect(() => {
+    if (!showModal || !activeDraftKey || saveLoading) return
+
+    const timeout = window.setTimeout(() => {
+      try {
+        const draft: QuotationFormDraft = {
+          formData,
+          items: quotationItems,
+          newItem,
+          savedAt: new Date().toISOString(),
+        }
+        window.localStorage.setItem(activeDraftKey, JSON.stringify(draft))
+        setDraftMessage('Draft saved automatically in this browser.')
+      } catch (error) {
+        setDraftMessage('Automatic draft saving is unavailable in this browser.')
+        console.error('Failed to auto-save quotation draft:', error)
+      }
+    }, 800)
+
+    return () => window.clearTimeout(timeout)
+  }, [activeDraftKey, formData, newItem, quotationItems, saveLoading, showModal])
 
   const fetchQuotations = async () => {
     try {
@@ -1210,6 +1261,61 @@ export default function QuotationsPage() {
     return Number(total.toFixed(2))
   }
 
+  const readQuotationDraft = (storageKey: string): QuotationFormDraft | null => {
+    try {
+      const savedDraft = window.localStorage.getItem(storageKey)
+      if (!savedDraft) return null
+
+      const parsedDraft = JSON.parse(savedDraft) as Partial<QuotationFormDraft>
+      if (
+        !parsedDraft.formData ||
+        !Array.isArray(parsedDraft.items) ||
+        !parsedDraft.newItem ||
+        typeof parsedDraft.savedAt !== 'string'
+      ) {
+        window.localStorage.removeItem(storageKey)
+        return null
+      }
+
+      return parsedDraft as QuotationFormDraft
+    } catch (error) {
+      console.error('Failed to restore quotation draft:', error)
+      return null
+    }
+  }
+
+  const openQuotationDraft = (
+    storageKey: string,
+    fallbackFormData: QuotationFormDraft['formData'],
+    fallbackItems: QuotationItem[],
+    fallbackNewItem: QuotationItem = {
+      area: 'Full Flat',
+      category: 'Painting',
+      description: '',
+      quantity: '1',
+      lengthIn: '0',
+      widthIn: '0',
+      rate: '0',
+      total: 0,
+    },
+  ) => {
+    const savedDraft = readQuotationDraft(storageKey)
+    setActiveDraftKey(storageKey)
+    setFormData(savedDraft?.formData || fallbackFormData)
+    setQuotationItems(savedDraft?.items || fallbackItems)
+    setNewItem(savedDraft?.newItem || fallbackNewItem)
+    setDraftMessage(savedDraft ? 'Recovered your automatically saved changes.' : 'Changes will be saved automatically in this browser.')
+  }
+
+  const handleShowRatePreferenceChange = (checked: boolean) => {
+    setShowRateInReport(checked)
+    try {
+      window.localStorage.setItem(SHOW_RATE_STORAGE_KEY, String(checked))
+    } catch (error) {
+      console.error('Failed to save quotation print preference:', error)
+    }
+  }
+
   const findMatchingClientId = (clientName: string) => {
     const normalizedClientName = normalizeLookupValue(clientName)
     if (!normalizedClientName) return ''
@@ -1255,7 +1361,7 @@ export default function QuotationsPage() {
 
     setEditingQuotation(null)
     setCopySourceQuotation(null)
-    setFormData({
+    const importedFormData = {
       quotationNo: importPreview.quotationNo,
       clientId: matchedClientId,
       projectId: matchedProjectId,
@@ -1263,9 +1369,12 @@ export default function QuotationsPage() {
       executionFeePercent: '0',
       notes: importPreview.notes || '',
       status: 'draft',
-    })
-    setQuotationItems(importedItems)
-    setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+    }
+    openQuotationDraft(
+      `${QUOTATION_DRAFT_STORAGE_PREFIX}import:${importPreview.quotationNo || 'unnumbered'}`,
+      importedFormData,
+      importedItems,
+    )
     setShowImportModal(false)
     setShowModal(true)
   }
@@ -1493,6 +1602,14 @@ export default function QuotationsPage() {
       const savedQuotation = await res.json().catch(() => null)
 
       if (res.ok) {
+        if (activeDraftKey) {
+          try {
+            window.localStorage.removeItem(activeDraftKey)
+          } catch (error) {
+            console.error('Failed to clear saved quotation draft:', error)
+          }
+        }
+
         if (savedQuotation) {
           setQuotations((currentQuotations) => {
             if (isEditing) {
@@ -1508,6 +1625,8 @@ export default function QuotationsPage() {
         setShowModal(false)
         setEditingQuotation(null)
         setCopySourceQuotation(null)
+        setActiveDraftKey(null)
+        setDraftMessage('')
         setSaveMessage({
           type: 'success',
           text: isEditing ? 'Quotation updated successfully.' : 'Quotation created successfully.',
@@ -1548,7 +1667,7 @@ export default function QuotationsPage() {
     setSaveMessage(null)
     setEditingQuotation(quotation)
     setCopySourceQuotation(null)
-    setFormData({
+    const quotationFormData = {
       quotationNo: quotation.quotationNo,
       clientId: quotation.clientId,
       projectId: quotation.projectId,
@@ -1556,8 +1675,8 @@ export default function QuotationsPage() {
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
       notes: quotation.notes || '',
       status: quotation.status,
-    })
-    setQuotationItems(quotation.items.map((item) => ({
+    }
+    const editableItems = quotation.items.map((item) => ({
       id: item.id,
       category: item.category || 'Painting',
       area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
@@ -1568,7 +1687,12 @@ export default function QuotationsPage() {
       rate: String(item.rate || 0),
       total: item.total,
       manualTotal: false,
-    })))
+    }))
+    openQuotationDraft(
+      `${QUOTATION_DRAFT_STORAGE_PREFIX}edit:${quotation.id}`,
+      quotationFormData,
+      editableItems,
+    )
     setShowModal(true)
   }
 
@@ -1588,7 +1712,7 @@ export default function QuotationsPage() {
 
     setEditingQuotation(null)
     setCopySourceQuotation(quotation)
-    setFormData({
+    const copiedFormData = {
       quotationNo: '',
       clientId: '',
       projectId: '',
@@ -1596,9 +1720,12 @@ export default function QuotationsPage() {
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
       notes: quotation.notes || '',
       status: 'draft',
-    })
-    setQuotationItems(copiedItems)
-    setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+    }
+    openQuotationDraft(
+      `${QUOTATION_DRAFT_STORAGE_PREFIX}copy:${quotation.id}`,
+      copiedFormData,
+      copiedItems,
+    )
     setShowModal(true)
   }
 
@@ -1632,17 +1759,19 @@ export default function QuotationsPage() {
     setSaveMessage(null)
     setEditingQuotation(null)
     setCopySourceQuotation(null)
-    setFormData({
-      quotationNo: '',
-      clientId: '',
-      projectId: '',
-      amount: '',
-      executionFeePercent: '0',
-      notes: '',
-      status: 'draft'
-    })
-    setQuotationItems([])
-    setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+    openQuotationDraft(
+      `${QUOTATION_DRAFT_STORAGE_PREFIX}new`,
+      {
+        quotationNo: '',
+        clientId: '',
+        projectId: '',
+        amount: '',
+        executionFeePercent: '0',
+        notes: '',
+        status: 'draft',
+      },
+      [],
+    )
     setShowModal(true)
   }
 
@@ -1918,6 +2047,11 @@ export default function QuotationsPage() {
                 {saveMessage.text}
               </div>
             )}
+            {draftMessage && (
+              <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800" role="status">
+                {draftMessage}
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mb-4">
                 <div>
@@ -2000,7 +2134,7 @@ export default function QuotationsPage() {
                   <input
                     type="checkbox"
                     checked={showRateInReport}
-                    onChange={(e) => setShowRateInReport(e.target.checked)}
+                    onChange={(e) => handleShowRatePreferenceChange(e.target.checked)}
                     className="w-4 h-4 border border-gray-300 rounded cursor-pointer"
                   />
                   Show Rate Column in Print Report
