@@ -128,7 +128,7 @@ const QUOTATION_NOTES = [
   'Any item, finish, or accessory outside this quotation scope will be billed separately as per actual.',
   'Shade, laminate, hardware, lighting, and decorative finish selections may change the final project value.',
 ]
-const QUOTATION_TERMS = [
+const DEFAULT_QUOTATION_TERMS = [
   'Order once placed cannot be cancelled.',
   'Payments must be made within the agreed slots; delays may affect the progress of work.',
   'Cost will be extra other than quotation products.',
@@ -187,6 +187,7 @@ interface Quotation {
   clientId: string
   projectId: string
   notes?: string
+  terms?: string[] | null
   client: {
     firstName: string
     lastName: string
@@ -232,6 +233,7 @@ interface QuotationFormDraft {
   }
   items: QuotationItem[]
   newItem: QuotationItem
+  terms?: string[]
   savedAt: string
 }
 
@@ -282,6 +284,9 @@ const escapeHtml = (value: string) =>
     .replace(/'/g, '&#39;')
 
 const formatCurrencyWithSymbol = (amount: number) => `₹${formatCurrency(amount)}`
+
+const getQuotationTerms = (quotation: Pick<Quotation, 'terms'>) =>
+  Array.isArray(quotation.terms) ? quotation.terms : DEFAULT_QUOTATION_TERMS
 
 const getQuotationNoteLines = (customNotes?: string) => {
   const notes = [...QUOTATION_NOTES]
@@ -529,7 +534,7 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
     })
     .join('')
 
-  const termsRows = QUOTATION_TERMS.map((term, index) => `
+  const termsRows = getQuotationTerms(quotation).map((term, index) => `
     <tr>
       <td class="center">${index + 1}</td>
       <td>${escapeHtml(term)}</td>
@@ -1164,6 +1169,7 @@ export default function QuotationsPage() {
   })
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
   const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+  const [quotationTerms, setQuotationTerms] = useState<string[]>([...DEFAULT_QUOTATION_TERMS])
   const [showRateInReport, setShowRateInReport] = useState(false)
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState('')
@@ -1202,6 +1208,7 @@ export default function QuotationsPage() {
           formData,
           items: quotationItems,
           newItem,
+          terms: quotationTerms,
           savedAt: new Date().toISOString(),
         }
         window.localStorage.setItem(activeDraftKey, JSON.stringify(draft))
@@ -1213,7 +1220,7 @@ export default function QuotationsPage() {
     }, 800)
 
     return () => window.clearTimeout(timeout)
-  }, [activeDraftKey, formData, newItem, quotationItems, saveLoading, showModal])
+  }, [activeDraftKey, formData, newItem, quotationItems, quotationTerms, saveLoading, showModal])
 
   const fetchQuotations = async () => {
     try {
@@ -1288,6 +1295,7 @@ export default function QuotationsPage() {
     storageKey: string,
     fallbackFormData: QuotationFormDraft['formData'],
     fallbackItems: QuotationItem[],
+    fallbackTerms: string[] = DEFAULT_QUOTATION_TERMS,
     fallbackNewItem: QuotationItem = {
       area: 'Full Flat',
       category: 'Painting',
@@ -1304,6 +1312,7 @@ export default function QuotationsPage() {
     setFormData(savedDraft?.formData || fallbackFormData)
     setQuotationItems(savedDraft?.items || fallbackItems)
     setNewItem(savedDraft?.newItem || fallbackNewItem)
+    setQuotationTerms(Array.isArray(savedDraft?.terms) ? savedDraft.terms : [...fallbackTerms])
     setDraftMessage(savedDraft ? 'Recovered your automatically saved changes.' : 'Changes will be saved automatically in this browser.')
   }
 
@@ -1542,6 +1551,32 @@ export default function QuotationsPage() {
     })
   }
 
+  const updateQuotationTerm = (index: number, value: string) => {
+    setQuotationTerms((currentTerms) =>
+      currentTerms.map((term, termIndex) => (termIndex === index ? value : term)),
+    )
+  }
+
+  const addQuotationTerm = () => {
+    setQuotationTerms((currentTerms) => [...currentTerms, ''])
+  }
+
+  const removeQuotationTerm = (index: number) => {
+    setQuotationTerms((currentTerms) => currentTerms.filter((_, termIndex) => termIndex !== index))
+  }
+
+  const moveQuotationTerm = (index: number, direction: -1 | 1) => {
+    setQuotationTerms((currentTerms) => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= currentTerms.length) return currentTerms
+
+      const reorderedTerms = [...currentTerms]
+      const [term] = reorderedTerms.splice(index, 1)
+      reorderedTerms.splice(nextIndex, 0, term)
+      return reorderedTerms
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (saveLoading) return
@@ -1576,6 +1611,7 @@ export default function QuotationsPage() {
         }
       })
       const amount = calculateTotal(quotationItems)
+      const terms = quotationTerms.map((term) => term.trim()).filter(Boolean)
 
       const submitData = {
         ...formData,
@@ -1584,6 +1620,7 @@ export default function QuotationsPage() {
         notes: formData.notes,
         quotationNo: formData.quotationNo || `QT-${Date.now()}`,
         items: itemData,
+        terms,
       }
 
       const controller = new AbortController()
@@ -1642,6 +1679,7 @@ export default function QuotationsPage() {
         })
         setQuotationItems([])
         setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+        setQuotationTerms([...DEFAULT_QUOTATION_TERMS])
       } else {
         setSaveMessage({
           type: 'error',
@@ -1692,6 +1730,7 @@ export default function QuotationsPage() {
       `${QUOTATION_DRAFT_STORAGE_PREFIX}edit:${quotation.id}`,
       quotationFormData,
       editableItems,
+      getQuotationTerms(quotation),
     )
     setShowModal(true)
   }
@@ -1725,6 +1764,7 @@ export default function QuotationsPage() {
       `${QUOTATION_DRAFT_STORAGE_PREFIX}copy:${quotation.id}`,
       copiedFormData,
       copiedItems,
+      getQuotationTerms(quotation),
     )
     setShowModal(true)
   }
@@ -2463,6 +2503,80 @@ export default function QuotationsPage() {
                 </div>
               </div>
 
+              <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-gray-900">Terms and Conditions</h4>
+                    <p className="text-xs text-gray-600">These terms are saved only for this quotation and appear in preview and print.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={addQuotationTerm}
+                      disabled={quotationTerms.length >= 100}
+                      className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Add Term
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuotationTerms([...DEFAULT_QUOTATION_TERMS])}
+                      className="rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-100"
+                    >
+                      Reset Defaults
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {quotationTerms.length === 0 && (
+                    <div className="rounded border border-dashed border-gray-300 bg-white px-4 py-5 text-center text-sm text-gray-500">
+                      No terms will appear on this quotation. Select Add Term to create one.
+                    </div>
+                  )}
+                  {quotationTerms.map((term, index) => (
+                    <div key={index} className="flex items-start gap-2 rounded border border-gray-200 bg-white p-2">
+                      <span className="w-8 shrink-0 pt-2 text-center text-sm font-semibold text-gray-600">{index + 1}</span>
+                      <textarea
+                        value={term}
+                        onChange={(event) => updateQuotationTerm(index, event.target.value)}
+                        rows={2}
+                        maxLength={2000}
+                        aria-label={`Term ${index + 1}`}
+                        className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                      />
+                      <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => moveQuotationTerm(index, -1)}
+                          disabled={index === 0}
+                          aria-label={`Move term ${index + 1} up`}
+                          className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveQuotationTerm(index, 1)}
+                          disabled={index === quotationTerms.length - 1}
+                          aria-label={`Move term ${index + 1} down`}
+                          className="rounded border border-gray-300 px-2 py-1 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeQuotationTerm(index)}
+                          className="rounded border border-red-200 px-2 py-1 text-sm text-red-700 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -2701,8 +2815,8 @@ export default function QuotationsPage() {
                   <div className="border-b border-[#b8cfdf] bg-[linear-gradient(180deg,#e3f0f8_0%,#c7dceb_100%)] px-4 py-3 text-center text-lg font-semibold text-[#234d72]">Terms and Conditions</div>
                   <table className="w-full border-collapse text-sm">
                     <tbody>
-                      {QUOTATION_TERMS.map((term, index) => (
-                        <tr key={term}>
+                      {getQuotationTerms(viewingQuotation).map((term, index) => (
+                        <tr key={`${index}-${term}`}>
                           <td className="w-14 border border-[#b8cfdf] px-3 py-3 text-center font-medium">{index + 1}</td>
                           <td className="border border-[#b8cfdf] px-4 py-3 leading-6">{term}</td>
                         </tr>

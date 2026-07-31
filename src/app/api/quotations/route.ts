@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextField } from '@/lib/text-format'
+import { normalizeQuotationTerms } from '@/lib/quotation-terms'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
 export async function GET(request: NextRequest) {
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
           description: normalizeTextField(item.description),
         }))
       : []
+    const terms = normalizeQuotationTerms(body.terms)
     const quotation = await prisma.$transaction(async (tx) => {
       const createdQuotation = await tx.quotation.create({
         data: {
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest) {
           executionFeePercent: Number(body.executionFeePercent) || 0,
           status: body.status || 'draft',
           notes: normalizeTextField(body.notes),
+          ...(terms !== undefined ? { terms } : {}),
           items: {
             create: items,
           },

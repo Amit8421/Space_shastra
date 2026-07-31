@@ -169,6 +169,7 @@ model Quotation {
   amount              Float
   status              String          @default("draft")
   notes               String?
+  terms               Json?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   executionFeePercent Float           @default(0)

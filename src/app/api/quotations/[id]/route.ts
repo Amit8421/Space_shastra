@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextField } from '@/lib/text-format'
+import { normalizeQuotationTerms } from '@/lib/quotation-terms'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
 export const maxDuration = 60
@@ -11,7 +12,8 @@ export async function PUT(
 ) {
   try {
     const body = await request.json()
-    const { items, ...quotationFields } = body
+    const { items, terms: submittedTerms, ...quotationFields } = body
+    const normalizedTerms = normalizeQuotationTerms(submittedTerms)
 
     // Fetch current quotation to check status and client changes
     const currentQuotation = await prisma.quotation.findUnique({
@@ -27,6 +29,7 @@ export async function PUT(
         ...quotationFields,
         executionFeePercent: Number(quotationFields.executionFeePercent) || 0,
         notes: normalizeTextField(quotationFields.notes),
+        ...(normalizedTerms !== undefined ? { terms: normalizedTerms } : {}),
       }
 
       await tx.quotation.update({
