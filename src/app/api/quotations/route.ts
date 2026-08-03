@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextField } from '@/lib/text-format'
 import { normalizeQuotationTerms } from '@/lib/quotation-terms'
+import { getQuotationGrandTotal } from '@/lib/quotation-total'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
 export async function GET(request: NextRequest) {
@@ -54,11 +55,12 @@ export async function POST(request: NextRequest) {
       })
 
       if (body.status === 'accepted' && body.clientId) {
+        const acceptedTotal = getQuotationGrandTotal(createdQuotation)
         await tx.client.update({
           where: { id: body.clientId },
           data: {
             balance: {
-              increment: body.amount,
+              increment: acceptedTotal,
             },
           },
         })

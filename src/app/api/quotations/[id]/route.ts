@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextField } from '@/lib/text-format'
 import { normalizeQuotationTerms } from '@/lib/quotation-terms'
+import { getQuotationGrandTotal } from '@/lib/quotation-total'
 import { syncFurnitureVendorAccountsForProject } from '@/lib/vendor-furniture-sync'
 
 export const maxDuration = 60
@@ -123,13 +124,15 @@ export async function PUT(
       const newClientId = quotationWithItems.clientId
       const wasAccepted = currentQuotation.status === 'accepted'
       const isAccepted = quotationWithItems.status === 'accepted'
+      const oldAcceptedTotal = getQuotationGrandTotal(currentQuotation)
+      const newAcceptedTotal = getQuotationGrandTotal(quotationWithItems)
 
       if (wasAccepted && oldClientId && (!isAccepted || oldClientId !== newClientId)) {
         await tx.client.update({
           where: { id: oldClientId },
           data: {
             balance: {
-              decrement: currentQuotation.amount,
+              decrement: oldAcceptedTotal,
             },
           },
         })
@@ -140,14 +143,14 @@ export async function PUT(
           where: { id: newClientId },
           data: {
             balance: {
-              increment: quotationWithItems.amount,
+              increment: newAcceptedTotal,
             },
           },
         })
       }
 
       if (wasAccepted && isAccepted && oldClientId === newClientId) {
-        const diff = quotationWithItems.amount - currentQuotation.amount
+        const diff = Math.round((newAcceptedTotal - oldAcceptedTotal + Number.EPSILON) * 100) / 100
         if (diff !== 0 && newClientId) {
           await tx.client.update({
             where: { id: newClientId },
@@ -199,11 +202,12 @@ export async function DELETE(
       })
 
       if (quotation.status === 'accepted' && quotation.clientId) {
+        const acceptedTotal = getQuotationGrandTotal(quotation)
         await tx.client.update({
           where: { id: quotation.clientId },
           data: {
             balance: {
-              decrement: quotation.amount,
+              decrement: acceptedTotal,
             },
           },
         })

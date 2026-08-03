@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getNormalizedFieldValue } from '@/lib/text-format'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
+import { getQuotationGrandTotal } from '@/lib/quotation-total'
 
 interface Client {
   id: string
@@ -190,13 +191,15 @@ export default function ClientsPage() {
       ])
 
       const [quotData, txData] = await Promise.all([quotRes.json(), txRes.json()])
-      const acceptedTotal = Array.isArray(quotData)
-        ? quotData.filter((q: any) => q.status === 'accepted').reduce((sum: number, q: any) => sum + Number(q.amount), 0)
-        : 0
+      const acceptedTotal = Math.round((Array.isArray(quotData)
+        ? quotData
+            .filter((q: any) => q.status === 'accepted')
+            .reduce((sum: number, q: any) => sum + getQuotationGrandTotal(q), 0)
+        : 0) * 100) / 100
       const paymentsTotal = Array.isArray(txData)
         ? txData.filter((t: any) => t.type === 'credit payment' || t.type === 'payment').reduce((sum: number, t: any) => sum + Number(t.amount), 0)
         : 0
-      const remainingTotal = acceptedTotal - paymentsTotal
+      const remainingTotal = Math.round((acceptedTotal - paymentsTotal + Number.EPSILON) * 100) / 100
 
       setAccountSummary({
         acceptedTotal,

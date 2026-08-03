@@ -1,51 +1,58 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getQuotationGrandTotal } from '@/lib/quotation-total'
 
 export async function POST(_request: NextRequest) {
   try {
-    const clients = await prisma.client.findMany({
-      select: { id: true },
+    const [clients, acceptedQuotations, payments] = await Promise.all([
+      prisma.client.findMany({
+        select: { id: true, balance: true },
+      }),
+      prisma.quotation.findMany({
+        where: { status: 'accepted' },
+        select: { clientId: true, amount: true, executionFeePercent: true },
+      }),
+      prisma.transaction.findMany({
+        where: { type: { in: ['credit payment', 'payment'] } },
+        select: { clientId: true, amount: true },
+      }),
+    ])
+
+    const acceptedTotals = new Map<string, number>()
+    acceptedQuotations.forEach((quotation) => {
+      acceptedTotals.set(
+        quotation.clientId,
+        (acceptedTotals.get(quotation.clientId) || 0) + getQuotationGrandTotal(quotation),
+      )
     })
 
-    const results = [] as Array<{ id: string; oldBalance: number; newBalance: number }>
+    const paymentTotals = new Map<string, number>()
+    payments.forEach((payment) => {
+      if (!payment.clientId) return
+      paymentTotals.set(payment.clientId, (paymentTotals.get(payment.clientId) || 0) + Number(payment.amount || 0))
+    })
 
-    for (const client of clients) {
-      const acceptedResult = await prisma.quotation.aggregate({
-        where: { clientId: client.id, status: 'accepted' },
-        _sum: { amount: true },
-      })
+    const results = clients.map((client) => {
+      const acceptedTotal = acceptedTotals.get(client.id) || 0
+      const paymentsTotal = paymentTotals.get(client.id) || 0
+      const expectedBalance = Math.round((acceptedTotal - paymentsTotal + Number.EPSILON) * 100) / 100
+      return { id: client.id, oldBalance: client.balance, newBalance: expectedBalance }
+    })
+    const changedResults = results.filter((result) => Math.abs(result.oldBalance - result.newBalance) >= 0.005)
 
-      const paymentsResult = await prisma.transaction.aggregate({
-        where: {
-          clientId: client.id,
-          type: { in: ['credit payment', 'payment'] },
-        },
-        _sum: { amount: true },
-      })
-
-      const acceptedTotal = acceptedResult._sum.amount ?? 0
-      const paymentsTotal = paymentsResult._sum.amount ?? 0
-      const expectedBalance = acceptedTotal - paymentsTotal
-
-      const clientRecord = await prisma.client.findUnique({
-        where: { id: client.id },
-        select: { balance: true },
-      })
-
-      const oldBalance = clientRecord?.balance ?? 0
-
-      if (oldBalance !== expectedBalance) {
-        await prisma.client.update({
-          where: { id: client.id },
-          data: { balance: expectedBalance },
-        })
-      }
-
-      results.push({ id: client.id, oldBalance, newBalance: expectedBalance })
+    if (changedResults.length > 0) {
+      await prisma.$transaction(
+        changedResults.map((result) =>
+          prisma.client.update({
+            where: { id: result.id },
+            data: { balance: result.newBalance },
+          }),
+        ),
+      )
     }
 
     return NextResponse.json({
-      reconciled: results.length,
+      reconciled: changedResults.length,
       details: results,
     })
   } catch (error) {

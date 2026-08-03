@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import { getNormalizedFieldValue, normalizeCapitalizedText } from '@/lib/text-format'
+import { DEFAULT_EXECUTION_FEE_PERCENT, getExecutionFeePercent, getQuotationGrandTotal } from '@/lib/quotation-total'
 
 const SHOW_RATE_STORAGE_KEY = 'space-shashtra:quotation-show-rate'
 const QUOTATION_DRAFT_STORAGE_PREFIX = 'space-shashtra:quotation-draft:v1:'
@@ -81,7 +82,6 @@ const areaOptions = [
   'Balcony',
 ]
 const categoryOptions = ['Painting', 'Furniture', 'Electrical', 'POP', 'Flooring', 'Lighting', 'Decor', 'Other']
-const DEFAULT_EXECUTION_FEE_PERCENT = 6
 const COMPANY_DETAILS = {
   title: 'Space Shashtra Interiors',
   proprietor: 'Prop : Rajshree S. Bagul.',
@@ -365,13 +365,6 @@ const groupQuotationItemsByArea = (items: QuotationItem[]) => {
     grouped[areaKey].push(item)
   })
   return grouped
-}
-
-const getExecutionFeePercent = (quotation?: Pick<Quotation, 'executionFeePercent'> | null) =>
-  quotation?.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT
-const getQuotationGrandTotal = (quotation: Pick<Quotation, 'amount' | 'executionFeePercent'>) => {
-  const subtotal = Number(quotation.amount || 0)
-  return subtotal + subtotal * (getExecutionFeePercent(quotation) / 100)
 }
 
 const getComputedQuotationItems = (items: QuotationItem[]): ComputedQuotationItem[] =>
