@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getQuotationGrandTotal } from '@/lib/quotation-total'
 
+const roundCurrency = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
@@ -29,6 +31,7 @@ export async function GET(
       prisma.purchase.findMany({
         where: {
           projectId: params.id,
+          status: { not: 'cancelled' },
         },
         include: {
           vendor: true,
@@ -89,11 +92,12 @@ export async function GET(
       ...quotation,
       amount: getQuotationGrandTotal(quotation),
     }))
-    const acceptedTotal = acceptedQuotationRows.reduce((sum, quotation) => sum + Number(quotation.amount), 0)
-    const clientPaymentsTotal = clientPayments.reduce((sum, payment) => sum + Number(payment.amount), 0)
-    const purchasesTotal = purchases.reduce((sum, purchase) => sum + Number(purchase.amount), 0)
+    const acceptedTotal = roundCurrency(acceptedQuotationRows.reduce((sum, quotation) => sum + Number(quotation.amount), 0))
+    const clientPaymentsTotal = roundCurrency(clientPayments.reduce((sum, payment) => sum + Number(payment.amount), 0))
+    const purchasesTotal = roundCurrency(purchases.reduce((sum, purchase) => sum + Number(purchase.amount), 0))
 
     const otherProjectTransactions = transactions.filter((transaction) =>
+      !(transaction.clientId && ['credit payment', 'payment'].includes(transaction.type)) &&
       !(transaction.vendorId && ['expense', 'purchase', 'payment'].includes(transaction.type))
     )
 
@@ -102,8 +106,8 @@ export async function GET(
     )
     const incomeTransactions = otherProjectTransactions.filter((transaction) => transaction.type === 'income')
 
-    const otherExpensesTotal = expenseTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0)
-    const otherIncomeTotal = incomeTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0)
+    const otherExpensesTotal = roundCurrency(expenseTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0))
+    const otherIncomeTotal = roundCurrency(incomeTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0))
 
     const vendorAccountSummaries = vendorAccounts.map((account) => {
       const paymentsTotal = account.entries
@@ -127,13 +131,26 @@ export async function GET(
       }
     })
 
-    const vendorPaymentsTotal = vendorAccountSummaries.reduce((sum, account) => sum + account.paymentsTotal, 0)
-    const vendorChargesTotal = vendorAccountSummaries.reduce((sum, account) => sum + account.chargesTotal, 0)
-    const totalExpenses = purchasesTotal + otherExpensesTotal + vendorPaymentsTotal + vendorChargesTotal
-    const totalCredits = acceptedTotal + otherIncomeTotal
-    const netProfitLoss = totalCredits - totalExpenses
-    const receivedBalance = clientPaymentsTotal - totalExpenses
-    const clientReceivable = acceptedTotal - clientPaymentsTotal
+    const vendorContractCostTotal = roundCurrency(
+      vendorAccountSummaries.reduce((sum, account) => sum + Number(account.openingBalance), 0),
+    )
+    const vendorPaymentsTotal = roundCurrency(
+      vendorAccountSummaries.reduce((sum, account) => sum + account.paymentsTotal, 0),
+    )
+    const vendorChargesTotal = roundCurrency(
+      vendorAccountSummaries.reduce((sum, account) => sum + account.chargesTotal, 0),
+    )
+    const vendorCostTotal = roundCurrency(vendorContractCostTotal + vendorChargesTotal)
+    const vendorOutstandingTotal = roundCurrency(
+      vendorAccountSummaries.reduce((sum, account) => sum + Number(account.currentBalance), 0),
+    )
+    const totalProjectCost = roundCurrency(purchasesTotal + vendorCostTotal + otherExpensesTotal)
+    const totalProjectIncome = roundCurrency(acceptedTotal + otherIncomeTotal)
+    const estimatedProjectProfit = roundCurrency(totalProjectIncome - totalProjectCost)
+    const cashRemaining = roundCurrency(
+      clientPaymentsTotal + otherIncomeTotal - vendorPaymentsTotal - otherExpensesTotal,
+    )
+    const clientReceivable = roundCurrency(acceptedTotal - clientPaymentsTotal)
 
     return NextResponse.json({
       project: {
@@ -150,14 +167,17 @@ export async function GET(
         clientPaymentsTotal,
         clientReceivable,
         purchasesTotal,
+        vendorContractCostTotal,
         vendorPaymentsTotal,
         vendorChargesTotal,
+        vendorCostTotal,
+        vendorOutstandingTotal,
         otherExpensesTotal,
         otherIncomeTotal,
-        totalExpenses,
-        totalCredits,
-        netProfitLoss,
-        receivedBalance,
+        totalProjectCost,
+        totalProjectIncome,
+        estimatedProjectProfit,
+        cashRemaining,
       },
       acceptedQuotations: acceptedQuotationRows,
       clientPayments,

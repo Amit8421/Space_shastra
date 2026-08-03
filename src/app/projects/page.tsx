@@ -29,14 +29,17 @@ interface ProjectAccountSummary {
   clientPaymentsTotal: number
   clientReceivable: number
   purchasesTotal: number
+  vendorContractCostTotal: number
   vendorPaymentsTotal: number
   vendorChargesTotal: number
+  vendorCostTotal: number
+  vendorOutstandingTotal: number
   otherExpensesTotal: number
   otherIncomeTotal: number
-  totalExpenses: number
-  totalCredits: number
-  netProfitLoss: number
-  receivedBalance: number
+  totalProjectCost: number
+  totalProjectIncome: number
+  estimatedProjectProfit: number
+  cashRemaining: number
 }
 
 interface ProjectAccountEntry {
@@ -121,7 +124,10 @@ export default function ProjectsPage() {
     fetchClients()
   }, [])
 
-  const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`
+  const formatCurrency = (amount: number) => `Rs. ${new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0)}`
 
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString('en-GB', {
@@ -285,6 +291,16 @@ export default function ProjectsPage() {
       </tr>
     `).join('')
 
+    const purchaseRows = accountReport.purchases.map((purchase) => `
+      <tr>
+        <td>${escapeHtml(purchase.purchaseNo)}</td>
+        <td>${escapeHtml(purchase.vendor.name)}</td>
+        <td>${formatDate(purchase.purchaseDate)}</td>
+        <td>${escapeHtml(purchase.status)}</td>
+        <td style="text-align:right;">${formatCurrency(Number(purchase.amount))}</td>
+      </tr>
+    `).join('')
+
     const vendorRows = accountReport.vendorAccounts.map((account) => `
       <tr>
         <td>${escapeHtml(account.vendorName)}</td>
@@ -297,6 +313,12 @@ export default function ProjectsPage() {
       (sum, account) => sum + Number(account.currentBalance),
       0,
     )
+    const clientBalanceLabel = accountReport.summary.clientReceivable >= 0
+      ? 'Client Balance Due'
+      : 'Client Advance Received'
+    const profitLabel = accountReport.summary.estimatedProjectProfit >= 0
+      ? 'Estimated Project Profit'
+      : 'Estimated Project Loss'
 
     const transactionRows = accountReport.transactions.map((transaction) => `
       <tr>
@@ -370,7 +392,7 @@ export default function ProjectsPage() {
             }
             .grid {
               display: grid;
-              grid-template-columns: repeat(5, minmax(0, 1fr));
+              grid-template-columns: repeat(4, minmax(0, 1fr));
               gap: 6px;
               margin: 10px 0 12px;
             }
@@ -395,6 +417,7 @@ export default function ProjectsPage() {
               font-weight: 700;
               color: #111827;
             }
+            .hint { margin-top: 3px; color: #6b7280; font-size: 7.5px; line-height: 1.2; }
             table {
               border-collapse: collapse;
               width: 100%;
@@ -441,37 +464,48 @@ export default function ProjectsPage() {
           </div>
 
           <div class="grid">
-            <div class="card"><div class="label">Final Project Value</div><div class="value">${formatCurrency(accountReport.summary.acceptedTotal)}</div></div>
-            <div class="card"><div class="label">Client Payments Received</div><div class="value">${formatCurrency(accountReport.summary.clientPaymentsTotal)}</div></div>
-            <div class="card"><div class="label">Total Expenses</div><div class="value">${formatCurrency(accountReport.summary.totalExpenses)}</div></div>
-            <div class="card"><div class="label">Amount Remaining From Received</div><div class="value">${formatCurrency(accountReport.summary.receivedBalance)}</div></div>
-            <div class="card"><div class="label">Profit / Loss</div><div class="value">${formatCurrency(accountReport.summary.netProfitLoss)}</div></div>
+            <div class="card"><div class="label">Accepted Project Value</div><div class="value">${formatCurrency(accountReport.summary.acceptedTotal)}</div><div class="hint">Accepted quotations including execution fee</div></div>
+            <div class="card"><div class="label">Client Payments Received</div><div class="value">${formatCurrency(accountReport.summary.clientPaymentsTotal)}</div><div class="hint">Money received from the client</div></div>
+            <div class="card"><div class="label">${clientBalanceLabel}</div><div class="value">${formatCurrency(Math.abs(accountReport.summary.clientReceivable))}</div><div class="hint">${accountReport.summary.clientReceivable >= 0 ? 'Still to collect from the client' : 'Received above accepted project value'}</div></div>
+            <div class="card"><div class="label">${profitLabel}</div><div class="value">${formatCurrency(Math.abs(accountReport.summary.estimatedProjectProfit))}</div><div class="hint">Project income minus committed project cost</div></div>
+            <div class="card"><div class="label">Total Committed Project Cost</div><div class="value">${formatCurrency(accountReport.summary.totalProjectCost)}</div><div class="hint">Vendor cost, purchase orders and other expenses</div></div>
+            <div class="card"><div class="label">Cash Remaining After Recorded Payments</div><div class="value">${formatCurrency(accountReport.summary.cashRemaining)}</div><div class="hint">Receipts and other income minus payments made</div></div>
+            <div class="card"><div class="label">Vendor Payments Made</div><div class="value">${formatCurrency(accountReport.summary.vendorPaymentsTotal)}</div><div class="hint">Cash paid to vendors so far</div></div>
+            <div class="card"><div class="label">Vendor Balance Payable</div><div class="value">${formatCurrency(accountReport.summary.vendorOutstandingTotal)}</div><div class="hint">Amount still payable to vendors</div></div>
           </div>
 
           <div class="section">
           <h3>Accepted Quotations</h3>
           <table>
-            <thead><tr><th>Quotation No</th><th>Date</th><th>Amount</th></tr></thead>
+            <thead><tr><th>Quotation No</th><th>Date</th><th>Accepted Value</th></tr></thead>
             <tbody>${quotationRows || '<tr><td colspan="3" style="text-align:center;">No accepted quotations.</td></tr>'}</tbody>
           </table>
           </div>
 
           <div class="section">
-          <h3>Client Payments</h3>
+          <h3>Client Payments Received</h3>
           <table>
-            <thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th>Amount Received</th></tr></thead>
             <tbody>${clientPaymentRows || '<tr><td colspan="3" style="text-align:center;">No project-linked client payments yet.</td></tr>'}</tbody>
+          </table>
+          </div>
+
+          <div class="section">
+          <h3>Purchase Orders</h3>
+          <table>
+            <thead><tr><th>PO No</th><th>Vendor</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
+            <tbody>${purchaseRows || '<tr><td colspan="5" style="text-align:center;">No active purchase orders.</td></tr>'}</tbody>
           </table>
           </div>
 
           <div class="section">
           <h3>Vendor Accounts</h3>
           <table>
-            <thead><tr><th>Vendor</th><th>Total Amount</th><th>Paid</th><th>Remaining</th></tr></thead>
+            <thead><tr><th>Vendor</th><th>Total Vendor Cost</th><th>Payments Made</th><th>Balance Payable</th></tr></thead>
             <tbody>
               ${vendorRows || '<tr><td colspan="4" style="text-align:center;">No vendor account data yet.</td></tr>'}
               <tr>
-                <td colspan="3" style="text-align:right;"><strong>Total Remaining</strong></td>
+                <td colspan="3" style="text-align:right;"><strong>Total Vendor Balance Payable</strong></td>
                 <td style="text-align:right;"><strong>${formatCurrency(vendorRemainingTotal)}</strong></td>
               </tr>
             </tbody>
@@ -479,7 +513,7 @@ export default function ProjectsPage() {
           </div>
 
           <div class="section">
-          <h3>Other Project Transactions</h3>
+          <h3>Other Project Income and Expenses</h3>
           <table>
             <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Amount</th></tr></thead>
             <tbody>${transactionRows || '<tr><td colspan="4" style="text-align:center;">No other transactions yet.</td></tr>'}</tbody>
@@ -660,43 +694,57 @@ export default function ProjectsPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Final Project Value</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">Accepted Project Value</p>
                     <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(accountReport.summary.acceptedTotal)}</p>
+                    <p className="mt-1 text-xs text-gray-500">Accepted quotations including execution fee</p>
                   </div>
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Client Payments Received</p>
                     <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(accountReport.summary.clientPaymentsTotal)}</p>
+                    <p className="mt-1 text-xs text-gray-500">Money received from the client</p>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Total Expenses</p>
-                    <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(accountReport.summary.totalExpenses)}</p>
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-blue-700">
+                      {accountReport.summary.clientReceivable >= 0 ? 'Client Balance Due' : 'Client Advance Received'}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-blue-950">
+                      {formatCurrency(Math.abs(accountReport.summary.clientReceivable))}
+                    </p>
+                    <p className="mt-1 text-xs text-blue-700">
+                      {accountReport.summary.clientReceivable >= 0 ? 'Still to collect from the client' : 'Received above accepted project value'}
+                    </p>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Amount Remaining From Received</p>
-                    <p className="mt-2 text-2xl font-semibold text-gray-900">{formatCurrency(accountReport.summary.receivedBalance)}</p>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-emerald-700">
+                      {accountReport.summary.estimatedProjectProfit >= 0 ? 'Estimated Project Profit' : 'Estimated Project Loss'}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-emerald-950">
+                      {formatCurrency(Math.abs(accountReport.summary.estimatedProjectProfit))}
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-700">Project income minus committed project cost</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-blue-700">Client Receivable</p>
-                    <p className="mt-2 text-xl font-semibold text-blue-950">{formatCurrency(accountReport.summary.clientReceivable)}</p>
-                  </div>
                   <div className="rounded-lg border border-orange-100 bg-orange-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-orange-700">Profit / Loss</p>
-                    <p className="mt-2 text-xl font-semibold text-orange-950">{formatCurrency(accountReport.summary.netProfitLoss)}</p>
+                    <p className="text-xs uppercase tracking-wide text-orange-700">Total Committed Project Cost</p>
+                    <p className="mt-2 text-xl font-semibold text-orange-950">{formatCurrency(accountReport.summary.totalProjectCost)}</p>
+                    <p className="mt-1 text-xs text-orange-700">Vendor cost, purchase orders and other expenses</p>
+                  </div>
+                  <div className="rounded-lg border border-teal-100 bg-teal-50 p-4">
+                    <p className="text-xs uppercase tracking-wide text-teal-700">Cash Remaining After Recorded Payments</p>
+                    <p className="mt-2 text-xl font-semibold text-teal-950">{formatCurrency(accountReport.summary.cashRemaining)}</p>
+                    <p className="mt-1 text-xs text-teal-700">Receipts and other income minus payments made</p>
                   </div>
                   <div className="rounded-lg border border-rose-100 bg-rose-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-rose-700">Vendor Payments + Charges</p>
-                    <p className="mt-2 text-xl font-semibold text-rose-950">
-                      {formatCurrency(accountReport.summary.vendorPaymentsTotal + accountReport.summary.vendorChargesTotal)}
-                    </p>
+                    <p className="text-xs uppercase tracking-wide text-rose-700">Vendor Payments Made</p>
+                    <p className="mt-2 text-xl font-semibold text-rose-950">{formatCurrency(accountReport.summary.vendorPaymentsTotal)}</p>
+                    <p className="mt-1 text-xs text-rose-700">Cash paid to vendors so far</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-600">Other Expenses + Income</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatCurrency(accountReport.summary.otherExpensesTotal - accountReport.summary.otherIncomeTotal)}
-                    </p>
+                    <p className="text-xs uppercase tracking-wide text-slate-600">Vendor Balance Payable</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">{formatCurrency(accountReport.summary.vendorOutstandingTotal)}</p>
+                    <p className="mt-1 text-xs text-slate-600">Amount still payable to vendors</p>
                   </div>
                 </div>
 
@@ -711,7 +759,7 @@ export default function ProjectsPage() {
                           <tr>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Quotation No</th>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Date</th>
-                            <th className="px-3 py-2 text-right text-sm font-medium text-gray-900">Amount</th>
+                            <th className="px-3 py-2 text-right text-sm font-medium text-gray-900">Accepted Value</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -729,7 +777,7 @@ export default function ProjectsPage() {
                 </div>
 
                 <div className="rounded-lg border border-gray-200 p-4">
-                  <h4 className="mb-3 text-lg font-semibold">Client Payments</h4>
+                  <h4 className="mb-3 text-lg font-semibold">Client Payments Received</h4>
                   <p className="mb-3 text-sm text-gray-600">
                     Record project-wise client receipts from the Transactions page using `Credit Payment` with this project selected.
                   </p>
@@ -742,7 +790,7 @@ export default function ProjectsPage() {
                           <tr>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Date</th>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Description</th>
-                            <th className="px-3 py-2 text-right text-sm font-medium text-gray-900">Amount</th>
+                            <th className="px-3 py-2 text-right text-sm font-medium text-gray-900">Amount Received</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
@@ -786,7 +834,7 @@ export default function ProjectsPage() {
                   </div>
 
                   <div className="rounded-lg border border-gray-200 p-4">
-                    <h4 className="mb-3 text-lg font-semibold">Other Project Transactions</h4>
+                    <h4 className="mb-3 text-lg font-semibold">Other Project Income and Expenses</h4>
                     {accountReport.transactions.length === 0 ? (
                       <p className="text-sm text-gray-600">No extra project transactions recorded yet.</p>
                     ) : (
@@ -826,15 +874,15 @@ export default function ProjectsPage() {
                             </div>
                             <div className="grid grid-cols-1 gap-2 text-right sm:grid-cols-3 sm:gap-4">
                               <div>
-                                <p className="text-xs uppercase tracking-wide text-gray-500">Total Amount</p>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Total Vendor Cost</p>
                                 <p className="font-semibold">{formatCurrency(account.openingBalance + account.chargesTotal)}</p>
                               </div>
                               <div>
-                                <p className="text-xs uppercase tracking-wide text-gray-500">Paid</p>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Payments Made</p>
                                 <p className="font-semibold">{formatCurrency(account.paymentsTotal)}</p>
                               </div>
                               <div>
-                                <p className="text-xs uppercase tracking-wide text-gray-500">Remaining</p>
+                                <p className="text-xs uppercase tracking-wide text-gray-500">Balance Payable</p>
                                 <p className="font-semibold">{formatCurrency(account.currentBalance)}</p>
                               </div>
                             </div>
