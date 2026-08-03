@@ -41,6 +41,7 @@ interface Project {
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [reconciling, setReconciling] = useState(false)
@@ -75,8 +76,18 @@ export default function ClientsPage() {
 
   const fetchClients = async (selectedClientId?: string) => {
     try {
+      setLoadError('')
       const res = await fetchWithAuth('/api/clients')
-      const data: Client[] = await res.json()
+      if (!res.ok) {
+        throw new Error(`Client request failed with status ${res.status}`)
+      }
+
+      const responseData: unknown = await res.json()
+      if (!Array.isArray(responseData)) {
+        throw new Error('Client request returned an invalid response')
+      }
+
+      const data = responseData as Client[]
       setClients(data)
       if (selectedClientId) {
         const updatedClient = data.find((client) => client.id === selectedClientId) || null
@@ -85,6 +96,8 @@ export default function ClientsPage() {
       return data
     } catch (error) {
       console.error('Failed to fetch clients:', error)
+      setClients([])
+      setLoadError('Unable to load clients. Please refresh the page or sign in again.')
       return []
     } finally {
       setLoading(false)
@@ -186,9 +199,13 @@ export default function ClientsPage() {
   const fetchClientAccountSummary = async (clientId: string) => {
     try {
       const [quotRes, txRes] = await Promise.all([
-        fetch(`/api/quotations?clientId=${clientId}`),
-        fetch(`/api/transactions?clientId=${clientId}`),
+        fetchWithAuth(`/api/quotations?clientId=${clientId}`),
+        fetchWithAuth(`/api/transactions?clientId=${clientId}`),
       ])
+
+      if (!quotRes.ok || !txRes.ok) {
+        throw new Error('Failed to load client account totals')
+      }
 
       const [quotData, txData] = await Promise.all([quotRes.json(), txRes.json()])
       const acceptedTotal = Math.round((Array.isArray(quotData)
@@ -507,6 +524,20 @@ export default function ClientsPage() {
 
       {loading ? (
         <p>Loading...</p>
+      ) : loadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800">
+          <p>{loadError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true)
+              void fetchClients()
+            }}
+            className="mt-3 rounded bg-red-700 px-4 py-2 text-white hover:bg-red-800"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full">
