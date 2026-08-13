@@ -16,6 +16,17 @@ type PdfRow = {
   words: PdfWord[]
 }
 
+type PdfColumns = {
+  serialStart: number
+  descriptionStart: number
+  lengthStart: number
+  widthStart: number
+  unitStart: number
+  rateStart: number
+  amountStart: number
+  amountEnd: number
+}
+
 function normalizeText(value: unknown) {
   return String(value ?? '').replace(/\s+/g, ' ').trim()
 }
@@ -69,6 +80,39 @@ function rowCell(row: PdfRow, startRatio: number, endRatio: number) {
 
 function rowText(row: PdfRow) {
   return joinWords(row.words)
+}
+
+function detectColumns(headerRow: PdfRow): PdfColumns {
+  const keyedWords = headerRow.words.map((word) => ({ ...word, key: normalizeKey(word.text) }))
+  const serial = keyedWords.find((word) => word.key === 'sr no')
+  const description = keyedWords.find((word) => word.key === 'item description')
+  const sizes = keyedWords.filter((word) => word.key === 'size').sort((left, right) => left.x - right.x)
+  const unit = keyedWords.find((word) => word.key === 'unit')
+  const rate = keyedWords.find((word) => word.key === 'rate')
+  const amount = keyedWords.find((word) => word.key === 'amount')
+  if (!serial || !description || sizes.length < 2 || !unit || !rate || !amount) {
+    throw new Error('Could not determine the PDF quotation columns from its table header.')
+  }
+
+  const pageWidth = headerRow.pageWidth
+  const serialStart = Math.max(0, serial.x / pageWidth - 0.01)
+  const descriptionStart = Math.max(serialStart, description.x / pageWidth - 0.062)
+  const lengthStart = sizes[0].x / pageWidth - 0.033
+  const widthStart = sizes[1].x / pageWidth - 0.017
+  const unitStart = unit.x / pageWidth - 0.022
+  const rateStart = rate.x / pageWidth - 0.028
+  const amountStart = amount.x / pageWidth - 0.024
+
+  return {
+    serialStart,
+    descriptionStart,
+    lengthStart,
+    widthStart,
+    unitStart,
+    rateStart,
+    amountStart,
+    amountEnd: Math.min(0.98, amountStart + 0.13),
+  }
 }
 
 function cleanClientName(value: string) {
@@ -188,7 +232,11 @@ function parseTrailingItems(rows: PdfRow[], tableEndIndex: number, termsStartInd
 }
 
 export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string): Promise<ImportedQuotationPayload> {
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const [{ getDocument }, workerModule] = await Promise.all([
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.mjs'),
+  ])
+  ;(globalThis as typeof globalThis & { pdfjsWorker?: typeof workerModule }).pdfjsWorker = workerModule
   const document = await getDocument({
     data: new Uint8Array(buffer),
     useSystemFonts: true,
@@ -232,6 +280,7 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   if (headerIndex < 0) {
     throw new Error('Could not detect a quotation table in this PDF. Please use a Space Shashtra quotation PDF or import the original Excel file.')
   }
+  const columns = detectColumns(rows[headerIndex])
 
   const termsStartIndex = rows.findIndex((row) => normalizeKey(rowText(row)).includes('terms and conditions'))
   const tableEndIndex = rows.findIndex((row, index) => index > headerIndex && normalizeKey(rowText(row)).includes('total amount'))
@@ -242,7 +291,9 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   const quotationNo = allText.match(/\bQN\s*[|:#-]?\s*([A-Za-z0-9\-/]+)/i)?.[1] || ''
   const clientRow = rows.find((row) => /mrs?\.?\s*\/\s*ms\.?/i.test(rowText(row)))
   const projectName = projectNameFromFile(fileName)
-  let clientName = clientRow ? cleanClientName(rowCell(clientRow, 0.16, 0.36)) : ''
+  let clientName = clientRow
+    ? cleanClientName(rowCell(clientRow, columns.descriptionStart, columns.lengthStart))
+    : ''
   if (clientName && !clientName.includes(' ')) {
     const projectWords = projectName.split(' ').filter(Boolean)
     if (projectWords.length >= 2 && normalizeKey(projectWords[0]) === normalizeKey(clientName)) {
@@ -252,6 +303,8 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   }
   const executionRow = rows.find((row) => normalizeKey(rowText(row)).includes('interior execution fees'))
   const executionFeePercent = executionRow ? parseNumber(rowText(executionRow).match(/\d+(?:\.\d+)?\s*%/)?.[0]) || null : null
+  const discountMatch = allText.match(/\bdiscount\s*[:\-]?\s*([\d,]+(?:\.\d+)?)/i)
+  const discount = discountMatch ? parseNumber(discountMatch[1]) : 0
   const terms = extractTerms(rows, termsStartIndex)
   const items: ImportedQuotationItem[] = []
   let currentCategory = 'Furniture'
@@ -260,12 +313,12 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   for (const row of rows.slice(headerIndex + 1, effectiveTableEnd)) {
     const text = rowText(row)
     const section = sectionForText(text)
-    const descriptionCell = rowCell(row, 0.16, 0.36)
-    const lengthCell = rowCell(row, 0.36, 0.448)
-    const widthCell = rowCell(row, 0.448, 0.498)
-    const unitCell = rowCell(row, 0.498, 0.559)
-    const rateCell = rowCell(row, 0.559, 0.636)
-    const amountCell = rowCell(row, 0.636, 0.76)
+    const descriptionCell = rowCell(row, columns.descriptionStart, columns.lengthStart)
+    const lengthCell = rowCell(row, columns.lengthStart, columns.widthStart)
+    const widthCell = rowCell(row, columns.widthStart, columns.unitStart)
+    const unitCell = rowCell(row, columns.unitStart, columns.rateStart)
+    const rateCell = rowCell(row, columns.rateStart, columns.amountStart)
+    const amountCell = rowCell(row, columns.amountStart, columns.amountEnd)
 
     if (section) {
       currentCategory = section.category
@@ -277,7 +330,7 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
     const description = descriptionCell || (section && !section.titleOnly ? text.replace(/\b\d[\d,]*(?:\.\d+)?\b.*$/i, '') : '')
     if (!description) continue
     const hasUsefulValue = Boolean(lengthCell || widthCell || unitCell || rateCell || amountCell)
-    const serialCell = rowCell(row, 0.11, 0.16)
+    const serialCell = rowCell(row, columns.serialStart, columns.descriptionStart)
     if (!hasUsefulValue && !/^\d+$/.test(serialCell) && currentCategory === 'Furniture') continue
 
     items.push(makeItem(currentCategory, currentArea, description, lengthCell, widthCell, unitCell, rateCell, amountCell))
@@ -289,7 +342,9 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   warnings.push(...trailing.warnings)
 
   const statedTotalRow = tableEndIndex >= 0 ? rows[tableEndIndex] : null
-  const statedTotal = statedTotalRow ? parseNumber(rowCell(statedTotalRow, 0.636, 0.76)) : 0
+  const statedTotal = statedTotalRow
+    ? parseNumber(rowCell(statedTotalRow, columns.amountStart, columns.amountEnd))
+    : 0
   const importedTotal = items.reduce((sum, item) => sum + item.total, 0)
   if (statedTotal > 0 && Math.abs(mainTableTotal - statedTotal) > 0.5) {
     warnings.push(`The PDF states a base total of Rs. ${statedTotal.toFixed(2)}, but its main item rows total Rs. ${mainTableTotal.toFixed(2)}.`)
@@ -301,6 +356,9 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   if (!clientName) warnings.push('Client name was not detected automatically. Please select the client in the quotation form.')
   if (!quotationNo) warnings.push('Quotation number was not detected. A new number will be generated if you leave it empty.')
   if (terms.length === 0) warnings.push('Terms and conditions were not detected in the PDF. Default terms will be used.')
+  if (discount > 0) {
+    warnings.push(`This PDF applies a discount of Rs. ${discount.toFixed(2)} after the execution fee. The current quotation form has no discount field, so verify the final total before saving.`)
+  }
   warnings.push('PDF positions can vary between templates. Review all imported rows, areas, rates, and totals before saving.')
 
   if (items.length === 0) throw new Error('No quotation items were found in the PDF.')
@@ -309,7 +367,7 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
     quotationNo,
     clientName,
     projectName,
-    notes: '',
+    notes: discount > 0 ? `Imported PDF discount: Rs. ${discount.toFixed(2)} (not automatically applied).` : '',
     executionFeePercent,
     terms,
     items,
