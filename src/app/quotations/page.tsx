@@ -80,6 +80,7 @@ const furnitureDescriptionOptionsByArea: Record<string, string[]> = {
 const areaOptions = [
   ...Object.keys(furnitureDescriptionOptionsByArea),
   'Dining Area',
+  'Bathroom',
   'Balcony',
   'Add Ons',
 ]
@@ -1156,6 +1157,7 @@ export default function QuotationsPage() {
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null)
   const [copySourceQuotation, setCopySourceQuotation] = useState<Quotation | null>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [importMode, setImportMode] = useState<'spreadsheet' | 'pdf'>('spreadsheet')
   const [importLoading, setImportLoading] = useState(false)
   const [importError, setImportError] = useState('')
   const [importPreview, setImportPreview] = useState<ImportedQuotationPreview | null>(null)
@@ -1453,8 +1455,9 @@ export default function QuotationsPage() {
     setImportPreview(null)
   }
 
-  const openImportModal = () => {
+  const openImportModal = (mode: 'spreadsheet' | 'pdf' = 'spreadsheet') => {
     resetImportState()
+    setImportMode(mode)
     setShowImportModal(true)
   }
 
@@ -1493,7 +1496,7 @@ export default function QuotationsPage() {
   const handleImportFileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!importFile) {
-      setImportError('Please choose an Excel or CSV file first.')
+      setImportError(importMode === 'pdf' ? 'Please choose a PDF file first.' : 'Please choose an Excel or CSV file first.')
       return
     }
 
@@ -1503,7 +1506,7 @@ export default function QuotationsPage() {
       const uploadData = new FormData()
       uploadData.append('file', importFile)
 
-      const res = await fetch('/api/quotations/import', {
+      const res = await fetch(importMode === 'pdf' ? '/api/quotations/import-pdf' : '/api/quotations/import', {
         method: 'POST',
         body: uploadData,
         credentials: 'include',
@@ -2013,10 +2016,16 @@ export default function QuotationsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={openImportModal}
+            onClick={() => openImportModal('spreadsheet')}
             className="border border-black px-5 py-2 rounded hover:bg-gray-50"
           >
             Import Quotation
+          </button>
+          <button
+            onClick={() => openImportModal('pdf')}
+            className="border border-blue-700 px-5 py-2 rounded text-blue-800 hover:bg-blue-50"
+          >
+            PDF Import
           </button>
           <button
             onClick={openAddModal}
@@ -2046,9 +2055,11 @@ export default function QuotationsPage() {
             <div className="border-b border-gray-200 px-6 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-bold">Import Quotation</h3>
+                <h3 className="text-xl font-bold">{importMode === 'pdf' ? 'PDF Import' : 'Import Quotation'}</h3>
                 <p className="text-sm text-gray-600">
-                  Upload an existing `.xlsx`, `.xls`, or `.csv` quotation file. We will extract the quotation items, sizes, and rates into your normal quotation form.
+                  {importMode === 'pdf'
+                    ? 'Upload a selectable-text quotation PDF. We will detect its client, areas, items, rates, totals, execution fee, and terms for review.'
+                    : 'Upload an existing `.xlsx`, `.xls`, or `.csv` quotation file. We will extract the quotation items, sizes, and rates into your normal quotation form.'}
                 </p>
               </div>
               <button
@@ -2070,7 +2081,7 @@ export default function QuotationsPage() {
                 <label className="block text-sm font-medium text-gray-800">Quotation File</label>
                 <input
                   type="file"
-                  accept=".xlsx,.xls,.csv"
+                  accept={importMode === 'pdf' ? '.pdf,application/pdf' : '.xlsx,.xls,.csv'}
                   onChange={(e) => {
                     setImportFile(e.target.files?.[0] || null)
                     setImportError('')
@@ -2078,7 +2089,9 @@ export default function QuotationsPage() {
                   className="mt-2 block w-full text-sm"
                 />
                 <p className="mt-2 text-xs text-gray-500">
-                  Best results come from structured Excel sheets with headers like Description, Qty, Length, Width, Rate, Total.
+                  {importMode === 'pdf'
+                    ? 'Best results come from PDFs exported directly from Excel. Scanned or image-only PDFs are not imported automatically.'
+                    : 'Best results come from structured Excel sheets with headers like Description, Qty, Length, Width, Rate, Total.'}
                 </p>
               </div>
 
@@ -2094,7 +2107,7 @@ export default function QuotationsPage() {
                   disabled={importLoading}
                   className="rounded bg-black px-5 py-2 text-white hover:bg-gray-900 disabled:opacity-60"
                 >
-                  {importLoading ? 'Reading File...' : 'Read Import File'}
+                  {importLoading ? 'Reading File...' : importMode === 'pdf' ? 'Read PDF' : 'Read Import File'}
                 </button>
               </div>
             </form>
@@ -2129,7 +2142,7 @@ export default function QuotationsPage() {
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                   <span className="font-semibold">Additional details detected:</span>{' '}
                   Execution fee {importPreview.executionFeePercent ?? 0}% and {importPreview.terms.length} terms and conditions.
-                  Excel line amounts will be preserved exactly where provided.
+                  Imported line amounts will be preserved exactly where provided.
                 </div>
 
                 {importPreview.warnings.length > 0 && (
