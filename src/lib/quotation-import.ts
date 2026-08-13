@@ -49,6 +49,7 @@ const AREA_LABEL_MAP: Record<string, string> = {
   'childrens bed room': 'Children Bedroom',
   'children s bed room': 'Children Bedroom',
   'add ons': 'Add Ons',
+  'dry balcony': 'Balcony',
   'parents room': 'Guest Bedroom',
   'parent room': 'Guest Bedroom',
 }
@@ -182,10 +183,15 @@ function extractMetadata(rows: unknown[][]) {
   }
 
   if (!metadata.clientName) {
-    const recipientRow = rows.find((row) => normalizeKey(row[1]).includes('mrs ms'))
-    metadata.clientName = recipientRow
-      ? normalizeText(recipientRow[2]).replace(/^(?:mr|mrs|ms|miss)\.?\s+/i, '')
-      : ''
+    const recipientRow = rows.find((row) => row.some((cell) => normalizeKey(cell).includes('mrs ms')))
+    if (recipientRow) {
+      const labelIndex = recipientRow.findIndex((cell) => normalizeKey(cell).includes('mrs ms'))
+      metadata.clientName = recipientRow
+        .slice(labelIndex + 1)
+        .map((cell) => normalizeText(cell))
+        .find(Boolean)
+        ?.replace(/^(?:mr|mrs|ms|miss)\.?\s+/i, '') || ''
+    }
   }
 
   return metadata
@@ -193,6 +199,12 @@ function extractMetadata(rows: unknown[][]) {
 
 function normalizeAreaLabel(value: string) {
   const normalized = normalizeKey(value)
+  if (normalized.startsWith('kitchen')) return 'Kitchen'
+  if (normalized.startsWith('living')) return 'Living Room'
+  if (normalized.startsWith('entrance')) return 'Entrance'
+  if (normalized.startsWith('kids bed') || normalized.startsWith('children')) return 'Children Bedroom'
+  if (normalized.startsWith('master bed')) return 'Master Bedroom'
+  if (normalized.includes('balcony')) return 'Balcony'
   return AREA_LABEL_MAP[normalized] || normalizeText(value)
 }
 
@@ -202,6 +214,23 @@ function inferCategoryFromSection(sectionTitle: string) {
   if (normalized.includes('painting')) return 'Painting'
   if (normalized.includes('pop')) return 'POP'
   return 'Furniture'
+}
+
+function isKnownFurnitureAreaTitle(value: string) {
+  const normalized = normalizeKey(value)
+  return (
+    normalized.startsWith('entrance') ||
+    normalized.startsWith('living') ||
+    normalized.startsWith('kitchen') ||
+    normalized.startsWith('kids bed') ||
+    normalized.startsWith('children') ||
+    normalized.startsWith('master bed') ||
+    normalized.startsWith('masters bed') ||
+    normalized.startsWith('master s bed') ||
+    normalized.includes('balcony') ||
+    normalized === 'add ons' ||
+    normalized === 'dining area'
+  )
 }
 
 function isIgnoredDescription(description: string) {
@@ -234,12 +263,11 @@ function extractTerms(rows: unknown[][]) {
 
   const terms: string[] = []
   for (const row of rows.slice(termsHeaderIndex + 1)) {
-    const termNumber = normalizeText(row[1])
-    const description = normalizeText(row[2])
-    if (!description) continue
-    if (/^\d+$/.test(termNumber) || (!termNumber && description)) {
-      terms.push(description)
-    }
+    if (shouldStopStructuredImport(row)) break
+    const termNumberIndex = row.findIndex((cell) => /^\d+$/.test(normalizeText(cell)))
+    if (termNumberIndex < 0) continue
+    const description = row.slice(termNumberIndex + 1).map((cell) => normalizeText(cell)).find(Boolean)
+    if (description) terms.push(description)
   }
   return terms
 }
@@ -261,12 +289,20 @@ function getStructuredColumns(headerRow: unknown[]) {
     patterns.some((pattern) => header === pattern || header.startsWith(pattern)),
   )
 
+  const sizeColumns = normalized
+    .map((header, index) => ({ header, index }))
+    .filter(({ header }) => header === 'size')
+    .map(({ index }) => index)
+  const explicitLength = find('size h', 'length')
+  const explicitWidth = find('size w', 'width')
+
   return {
     serial: find('sr no'),
     description: find('item description'),
     reference: find('ref image'),
-    length: find('size h', 'length'),
-    width: find('size w', 'width'),
+    length: explicitLength >= 0 ? explicitLength : sizeColumns[0] ?? -1,
+    width: explicitWidth >= 0 ? explicitWidth : sizeColumns[1] ?? -1,
+    unit: find('unit', 'qty', 'quantity'),
     rate: find('rate'),
     total: find('amount', 'total'),
   }
@@ -276,13 +312,32 @@ function isStructuredSectionRow(row: unknown[], columns: ReturnType<typeof getSt
   const serial = normalizeText(row[columns.serial])
   const description = normalizeText(row[columns.description])
   const title = normalizeText(row[columns.serial] || row[columns.description])
-  if (!title || description || /^\d+(?:\.\d+)?$/.test(serial) || serial === '*') return false
+  if (!title || /^\d+(?:\.\d+)?$/.test(serial) || serial === '*') return false
+
+  const normalizedTitle = normalizeKey(title)
+  if (normalizedTitle.includes('all below cost would be calculated')) return false
+  const isCategoryHeading = (
+    ['electrical', 'painting', 'pop'].some((category) => normalizedTitle.includes(category)) &&
+    normalizedTitle.includes('work')
+  )
+  if (isCategoryHeading) return true
+  if (!isKnownFurnitureAreaTitle(title)) return false
 
   const values = [columns.reference, columns.length, columns.width, columns.rate, columns.total]
     .filter((column) => column >= 0)
     .map((column) => normalizeText(row[column]))
     .filter(Boolean)
-  return values.length === 0
+  return values.length === 0 && (!description || !serial)
+}
+
+function isSummaryRow(row: unknown[]) {
+  const normalizedCells = row.map((cell) => normalizeKey(cell)).filter(Boolean)
+  return normalizedCells.some((cell) =>
+    cell === 'total' ||
+    cell === 'total amount' ||
+    cell === 'grand total' ||
+    cell.includes('interior execution fees'),
+  )
 }
 
 function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
@@ -312,14 +367,30 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
     const referenceText = normalizeText(row[columns.reference])
     const lengthText = normalizeText(row[columns.length])
     const widthText = normalizeText(row[columns.width])
+    const unitText = normalizeText(row[columns.unit])
     const rateText = normalizeText(row[columns.rate])
     const total = asNumber(row[columns.total])
+
+    if (isSummaryRow(row)) continue
 
     if (isStructuredSectionRow(row, columns)) {
       const title = normalizeText(row[columns.serial] || row[columns.description])
       if (!title) continue
       currentSection = normalizeAreaLabel(title)
       currentCategory = inferCategoryFromSection(title)
+      if (total > 0) {
+        items.push({
+          area: currentCategory === 'Furniture' ? currentSection : 'Full Flat',
+          category: currentCategory,
+          description: title,
+          quantity: '1',
+          lengthIn: '0',
+          widthIn: '0',
+          rate: String(parseFirstNumber(rateText) || 0),
+          total: Number(total.toFixed(2)),
+          manualTotal: true,
+        })
+      }
       continue
     }
 
@@ -329,11 +400,34 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
       currentSection = description
     }
 
+    if (!description && total > 0 && currentCategory !== 'Furniture') {
+      items.push({
+        area: 'Full Flat',
+        category: currentCategory,
+        description: currentSection || `${currentCategory} Work`,
+        quantity: '1',
+        lengthIn: '0',
+        widthIn: '0',
+        rate: String(parseFirstNumber(rateText) || 0),
+        total: Number(total.toFixed(2)),
+        manualTotal: true,
+      })
+      continue
+    }
+
     if (!description || isIgnoredDescription(description)) {
       continue
     }
 
-    if (!srNo && !total && !rateText && !lengthText && !referenceText) {
+    if (
+      !/^\d+(?:\.\d+)?$/.test(srNo) &&
+      !total &&
+      !rateText &&
+      !unitText &&
+      !lengthText &&
+      !widthText &&
+      !referenceText
+    ) {
       continue
     }
 
@@ -348,11 +442,11 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
     const length = referenceDimensions.length || (explicitDimensions.width > 0 ? explicitDimensions.length : 0)
     const width = referenceDimensions.width || (explicitDimensions.length > 0 ? explicitDimensions.width : 0)
     const hasLengthWidth = length > 0 && width > 0
-    const referenceIsQuantity = /^\d+(?:\.\d+)?(?:\s*units?)?$/i.test(referenceText) &&
-      [referenceText, lengthText, widthText].some((value) => /\b(?:per\s*)?units?\b/i.test(value))
+    const referenceIsQuantity = /^\d+(?:\.\d+)?(?:\s*(?:units?|drawers?))?$/i.test(referenceText) &&
+      [referenceText, lengthText, widthText, unitText].some((value) => /\b(?:per\s*)?(?:units?|drawers?)\b/i.test(value))
     const quantityText = referenceIsQuantity
       ? referenceText
-      : [referenceText, lengthText, widthText].find((value) => /\bunits?\b/i.test(value))
+      : [referenceText, lengthText, widthText, unitText].find((value) => /\b(?:units?|drawers?)\b/i.test(value))
     const quantity = quantityText ? parseFirstNumber(quantityText) || 1 : 1
     const inferredRateText = [rateText, widthText, lengthText].find((value) => /(?:sq\s*ft|sqft|rft|per\s*unit)/i.test(value)) || rateText
     const inferredRate = parseFirstNumber(inferredRateText)
@@ -375,18 +469,10 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
       fileName
         .replace(/\.[^.]+$/, '')
         .replace(/[_-]+/g, ' ')
-        .replace(/\b(?:final|quotation|quote)\b/gi, ' '),
+        .replace(/\b(?:final|quotation|quote|edited|editied)\b/gi, ' '),
     )
     metadata.projectName = fileStem
     warnings.push('Project name was not detected in the sheet, so the file name was used as a helper value.')
-  }
-
-  if (!metadata.clientName) {
-    const titleRow = rows.find((row) => normalizeKey(row[1]) === 'mrs ms')
-    const candidate = titleRow ? normalizeText(titleRow[2]) : ''
-    if (candidate) {
-      metadata.clientName = candidate
-    }
   }
 
   const qnCell = rows.flat().map((cell) => normalizeText(cell)).find((cell) => /\bqn\b/i.test(cell))
@@ -460,7 +546,10 @@ export function parseQuotationImportBuffer(buffer: Buffer, fileName: string) {
     blankrows: false,
   }) as unknown[][]
 
-  const hasStructuredHeader = rows.some((row) => normalizeKey(row[1]) === 'sr no' && normalizeKey(row[2]) === 'item description')
+  const hasStructuredHeader = rows.some((row) =>
+    row.some((cell) => normalizeKey(cell) === 'sr no') &&
+    row.some((cell) => normalizeKey(cell) === 'item description'),
+  )
   if (hasStructuredHeader) {
     return parseStructuredQuotationSheet(rows, fileName)
   }

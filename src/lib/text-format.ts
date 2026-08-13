@@ -28,7 +28,7 @@ export function normalizeCapitalizedText(value: string) {
   const leadingWhitespace = value.slice(0, firstNonSpaceIndex)
   const content = value.slice(firstNonSpaceIndex)
 
-  return `${leadingWhitespace}${content.charAt(0).toUpperCase()}${content.slice(1).toLowerCase()}`
+  return `${leadingWhitespace}${content.charAt(0).toUpperCase()}${content.slice(1)}`
 }
 
 export function normalizeTextField(value: string): string
