@@ -80,6 +80,7 @@ const areaOptions = [
   ...Object.keys(furnitureDescriptionOptionsByArea),
   'Dining Area',
   'Balcony',
+  'Add Ons',
 ]
 const categoryOptions = ['Painting', 'Furniture', 'Electrical', 'POP', 'Flooring', 'Lighting', 'Decor', 'Other']
 const COMPANY_DETAILS = {
@@ -118,6 +119,7 @@ const ROOM_COLORS: Record<string, { bg: string; border: string; text: string }> 
   'kids room': { bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-800' },
   'dining area': { bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-800' },
   'balcony': { bg: 'bg-cyan-50', border: 'border-cyan-300', text: 'text-cyan-800' },
+  'add ons': { bg: 'bg-lime-50', border: 'border-lime-300', text: 'text-lime-800' },
   'kitchen': { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800' },
   'full flat': { bg: 'bg-gray-50', border: 'border-gray-300', text: 'text-gray-800' },
 }
@@ -217,6 +219,8 @@ interface ImportedQuotationPreview {
   clientName: string
   projectName: string
   notes: string
+  executionFeePercent: number | null
+  terms: string[]
   warnings: string[]
   items: QuotationItem[]
 }
@@ -1358,7 +1362,7 @@ export default function QuotationsPage() {
     const importedItems = importPreview.items.map((item) => ({
       ...item,
       area: isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
-      total: calculateItemTotal(item),
+      total: item.manualTotal ? Number(item.total || 0) : calculateItemTotal(item),
     }))
 
     setEditingQuotation(null)
@@ -1368,7 +1372,7 @@ export default function QuotationsPage() {
       clientId: matchedClientId,
       projectId: matchedProjectId,
       amount: String(calculateTotal(importedItems)),
-      executionFeePercent: '0',
+      executionFeePercent: String(importPreview.executionFeePercent ?? 0),
       notes: importPreview.notes || '',
       status: 'draft',
     }
@@ -1376,6 +1380,7 @@ export default function QuotationsPage() {
       `${QUOTATION_DRAFT_STORAGE_PREFIX}import:${importPreview.quotationNo || 'unnumbered'}`,
       importedFormData,
       importedItems,
+      importPreview.terms.length > 0 ? importPreview.terms : DEFAULT_QUOTATION_TERMS,
     )
     setShowImportModal(false)
     setShowModal(true)
@@ -1412,6 +1417,10 @@ export default function QuotationsPage() {
         clientName: data.clientName || '',
         projectName: data.projectName || '',
         notes: data.notes || '',
+        executionFeePercent: Number.isFinite(Number(data.executionFeePercent))
+          ? Number(data.executionFeePercent)
+          : null,
+        terms: Array.isArray(data.terms) ? data.terms.filter((term: unknown) => typeof term === 'string' && term.trim()) : [],
         warnings: Array.isArray(data.warnings) ? data.warnings : [],
         items: Array.isArray(data.items)
           ? data.items.map((item: any) => ({
@@ -1423,7 +1432,7 @@ export default function QuotationsPage() {
               widthIn: String(item.widthIn || '0'),
               rate: String(item.rate || '0'),
               total: Number(item.total || 0),
-              manualTotal: false,
+              manualTotal: Boolean(item.manualTotal),
             }))
           : [],
       })
@@ -1981,6 +1990,12 @@ export default function QuotationsPage() {
                       </p>
                     )}
                   </div>
+                </div>
+
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  <span className="font-semibold">Additional details detected:</span>{' '}
+                  Execution fee {importPreview.executionFeePercent ?? 0}% and {importPreview.terms.length} terms and conditions.
+                  Excel line amounts will be preserved exactly where provided.
                 </div>
 
                 {importPreview.warnings.length > 0 && (

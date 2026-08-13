@@ -9,6 +9,7 @@ export type ImportedQuotationItem = {
   widthIn: string
   rate: string
   total: number
+  manualTotal: boolean
 }
 
 export type ImportedQuotationPayload = {
@@ -16,6 +17,8 @@ export type ImportedQuotationPayload = {
   clientName: string
   projectName: string
   notes: string
+  executionFeePercent: number | null
+  terms: string[]
   items: ImportedQuotationItem[]
   warnings: string[]
 }
@@ -41,6 +44,11 @@ const AREA_LABEL_MAP: Record<string, string> = {
   'kids bedroom': 'Children Bedroom',
   'master bed': 'Master Bedroom',
   'master bedroom': 'Master Bedroom',
+  'masters bed room': 'Master Bedroom',
+  'master s bed room': 'Master Bedroom',
+  'childrens bed room': 'Children Bedroom',
+  'children s bed room': 'Children Bedroom',
+  'add ons': 'Add Ons',
   'parents room': 'Guest Bedroom',
   'parent room': 'Guest Bedroom',
 }
@@ -67,6 +75,36 @@ function asNumber(value: unknown) {
 
   const parsed = Number(normalized)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseFirstNumber(value: unknown) {
+  const match = normalizeText(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/)
+  return match ? asNumber(match[0]) : 0
+}
+
+function parseFeetValue(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return 0
+
+  const feetInchesMatch = normalized.match(/(\d+(?:\.\d+)?)\s*['’]\s*(\d+(?:\.\d+)?)?\s*(?:["”])?/)
+  if (feetInchesMatch) {
+    const feet = Number(feetInchesMatch[1]) || 0
+    const inches = Number(feetInchesMatch[2]) || 0
+    return feet + inches / 12
+  }
+
+  return parseFirstNumber(normalized)
+}
+
+function parseDimensionText(value: unknown) {
+  const text = normalizeText(value)
+  const parts = text.split(/\s*[x×]\s*/i)
+  if (parts.length < 2) return { length: 0, width: 0 }
+
+  return {
+    length: Number(parseFeetValue(parts[0]).toFixed(2)),
+    width: Number(parseFeetValue(parts[1]).toFixed(2)),
+  }
 }
 
 function scoreHeaderRow(row: unknown[]) {
@@ -143,29 +181,14 @@ function extractMetadata(rows: unknown[][]) {
     }
   }
 
+  if (!metadata.clientName) {
+    const recipientRow = rows.find((row) => normalizeKey(row[1]).includes('mrs ms'))
+    metadata.clientName = recipientRow
+      ? normalizeText(recipientRow[2]).replace(/^(?:mr|mrs|ms|miss)\.?\s+/i, '')
+      : ''
+  }
+
   return metadata
-}
-
-function looksLikeSectionRow(row: unknown[]) {
-  const srNo = normalizeText(row[1])
-  const description = normalizeText(row[2])
-  const title = normalizeText(row[1] || row[2])
-  const sizeA = normalizeText(row[7])
-  const sizeB = normalizeText(row[8])
-  const unit = normalizeText(row[9])
-  const rate = normalizeText(row[10])
-  const total = normalizeText(row[11])
-
-  if (!title) return false
-  if (!description && title && !/^\d+$/.test(title)) return true
-  if (description && srNo) return false
-  if (normalizeKey(title).includes('all below cost would be calculated')) return false
-
-  const occupiedValueColumns = [sizeA, sizeB, unit, rate, total].filter((value) => {
-    const normalized = normalizeKey(value)
-    return Boolean(normalized) && normalized !== '0' && normalized !== '-'
-  })
-  return occupiedValueColumns.length === 0 || (occupiedValueColumns.length === 1 && total === '-')
 }
 
 function normalizeAreaLabel(value: string) {
@@ -203,68 +226,157 @@ function shouldStopStructuredImport(row: unknown[]) {
   )
 }
 
+function extractTerms(rows: unknown[][]) {
+  const termsHeaderIndex = rows.findIndex((row) =>
+    row.some((cell) => normalizeKey(cell).includes('terms and conditions')),
+  )
+  if (termsHeaderIndex < 0) return []
+
+  const terms: string[] = []
+  for (const row of rows.slice(termsHeaderIndex + 1)) {
+    const termNumber = normalizeText(row[1])
+    const description = normalizeText(row[2])
+    if (!description) continue
+    if (/^\d+$/.test(termNumber) || (!termNumber && description)) {
+      terms.push(description)
+    }
+  }
+  return terms
+}
+
+function extractExecutionFeePercent(rows: unknown[][]) {
+  const executionFeeRow = rows.find((row) =>
+    row.some((cell) => normalizeKey(cell).includes('interior execution fees')),
+  )
+  if (!executionFeeRow) return null
+
+  const percentageCell = executionFeeRow.find((cell) => normalizeText(cell).includes('%'))
+  const percentage = parseFirstNumber(percentageCell)
+  return percentage > 0 ? percentage : null
+}
+
+function getStructuredColumns(headerRow: unknown[]) {
+  const normalized = headerRow.map((cell) => normalizeKey(cell))
+  const find = (...patterns: string[]) => normalized.findIndex((header) =>
+    patterns.some((pattern) => header === pattern || header.startsWith(pattern)),
+  )
+
+  return {
+    serial: find('sr no'),
+    description: find('item description'),
+    reference: find('ref image'),
+    length: find('size h', 'length'),
+    width: find('size w', 'width'),
+    rate: find('rate'),
+    total: find('amount', 'total'),
+  }
+}
+
+function isStructuredSectionRow(row: unknown[], columns: ReturnType<typeof getStructuredColumns>) {
+  const serial = normalizeText(row[columns.serial])
+  const description = normalizeText(row[columns.description])
+  const title = normalizeText(row[columns.serial] || row[columns.description])
+  if (!title || description || /^\d+(?:\.\d+)?$/.test(serial) || serial === '*') return false
+
+  const values = [columns.reference, columns.length, columns.width, columns.rate, columns.total]
+    .filter((column) => column >= 0)
+    .map((column) => normalizeText(row[column]))
+    .filter(Boolean)
+  return values.length === 0
+}
+
 function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
   const metadata = extractMetadata(rows)
   const warnings: string[] = []
   const items: ImportedQuotationItem[] = []
+  const headerRowIndex = rows.findIndex((row) =>
+    row.some((cell) => normalizeKey(cell) === 'sr no') &&
+    row.some((cell) => normalizeKey(cell) === 'item description'),
+  )
+  if (headerRowIndex < 0) {
+    throw new Error('Could not locate the quotation items header in the structured sheet.')
+  }
+  const columns = getStructuredColumns(rows[headerRowIndex])
 
   let currentSection = ''
   let currentCategory = 'Furniture'
 
-  for (let index = 9; index < rows.length; index += 1) {
+  for (let index = headerRowIndex + 1; index < rows.length; index += 1) {
     const row = rows[index]
     if (shouldStopStructuredImport(row)) {
       break
     }
 
-    const srNo = normalizeText(row[1])
-    const description = normalizeText(row[2])
-    const sizeA = asNumber(row[7])
-    const sizeB = asNumber(row[8])
-    const unit = asNumber(row[9])
-    const rate = asNumber(row[10])
-    const total = asNumber(row[11])
+    const srNo = normalizeText(row[columns.serial])
+    const description = normalizeText(row[columns.description])
+    const referenceText = normalizeText(row[columns.reference])
+    const lengthText = normalizeText(row[columns.length])
+    const widthText = normalizeText(row[columns.width])
+    const rateText = normalizeText(row[columns.rate])
+    const total = asNumber(row[columns.total])
 
-    if (looksLikeSectionRow(row)) {
-      const title = normalizeText(row[1] || row[2])
+    if (isStructuredSectionRow(row, columns)) {
+      const title = normalizeText(row[columns.serial] || row[columns.description])
       if (!title) continue
       currentSection = normalizeAreaLabel(title)
       currentCategory = inferCategoryFromSection(title)
       continue
     }
 
+    const descriptionCategory = inferCategoryFromSection(description)
+    if (descriptionCategory !== 'Furniture' && normalizeKey(description).endsWith('work')) {
+      currentCategory = descriptionCategory
+      currentSection = description
+    }
+
     if (!description || isIgnoredDescription(description)) {
       continue
     }
 
-    if (!srNo && !total && !rate && !unit) {
+    if (!srNo && !total && !rateText && !lengthText && !referenceText) {
       continue
     }
 
     const area = currentCategory === 'Furniture'
       ? currentSection || 'Living Room'
       : 'Full Flat'
-
-    const quantity = unit > 0 && !sizeA && !sizeB && !rate ? unit : 1
-    const inferredRate = !rate && unit > 0 && sizeB > 0 && !sizeA ? unit : rate
-    const hasLengthWidth = sizeA > 0 && sizeB > 0
-    const lineUnit = hasLengthWidth ? unit || Number((sizeA * sizeB).toFixed(2)) : 0
-    const computedTotal = lineUnit > 0 && inferredRate > 0 ? lineUnit * inferredRate : quantity * inferredRate
+    const referenceDimensions = parseDimensionText(referenceText)
+    const explicitDimensions = {
+      length: parseFirstNumber(lengthText),
+      width: parseFirstNumber(widthText),
+    }
+    const length = referenceDimensions.length || (explicitDimensions.width > 0 ? explicitDimensions.length : 0)
+    const width = referenceDimensions.width || (explicitDimensions.length > 0 ? explicitDimensions.width : 0)
+    const hasLengthWidth = length > 0 && width > 0
+    const referenceIsQuantity = /^\d+(?:\.\d+)?(?:\s*units?)?$/i.test(referenceText) &&
+      [referenceText, lengthText, widthText].some((value) => /\b(?:per\s*)?units?\b/i.test(value))
+    const quantityText = referenceIsQuantity
+      ? referenceText
+      : [referenceText, lengthText, widthText].find((value) => /\bunits?\b/i.test(value))
+    const quantity = quantityText ? parseFirstNumber(quantityText) || 1 : 1
+    const inferredRateText = [rateText, widthText, lengthText].find((value) => /(?:sq\s*ft|sqft|rft|per\s*unit)/i.test(value)) || rateText
+    const inferredRate = parseFirstNumber(inferredRateText)
 
     items.push({
       area,
       category: currentCategory,
       description,
       quantity: String(quantity || 1),
-      lengthIn: hasLengthWidth ? String(sizeA) : '0',
-      widthIn: hasLengthWidth ? String(sizeB) : '0',
+      lengthIn: hasLengthWidth ? String(length) : '0',
+      widthIn: hasLengthWidth ? String(width) : '0',
       rate: String(inferredRate || 0),
-      total: Number((total || computedTotal).toFixed(2)),
+      total: Number(total.toFixed(2)),
+      manualTotal: true,
     })
   }
 
   if (!metadata.projectName) {
-    const fileStem = fileName.replace(/\.[^.]+$/, '')
+    const fileStem = normalizeText(
+      fileName
+        .replace(/\.[^.]+$/, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b(?:final|quotation|quote)\b/gi, ' '),
+    )
     metadata.projectName = fileStem
     warnings.push('Project name was not detected in the sheet, so the file name was used as a helper value.')
   }
@@ -277,8 +389,8 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
     }
   }
 
-  const qnRow = rows.find((row) => normalizeText(row[11]).toLowerCase().includes('qn'))
-  const qnValue = qnRow ? normalizeText(qnRow[11]).match(/qn[^0-9a-z]*([a-z0-9\-\/]+)/i)?.[1] : ''
+  const qnCell = rows.flat().map((cell) => normalizeText(cell)).find((cell) => /\bqn\b/i.test(cell))
+  const qnValue = qnCell ? qnCell.match(/qn[^0-9a-z]*([a-z0-9\-\/]+)/i)?.[1] : ''
   if (qnValue) {
     metadata.quotationNo = qnValue
   }
@@ -292,6 +404,8 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
     clientName: metadata.clientName,
     projectName: metadata.projectName,
     notes: metadata.notes,
+    executionFeePercent: extractExecutionFeePercent(rows),
+    terms: extractTerms(rows),
     items,
     warnings,
   } satisfies ImportedQuotationPayload
@@ -322,6 +436,7 @@ function buildImportedItem(row: unknown[], headerMap: Record<string, number>): I
     widthIn: widthFt > 0 ? String(widthFt) : '0',
     rate: String(rate || 0),
     total,
+    manualTotal: fileTotal > 0,
   }
 }
 
@@ -397,6 +512,8 @@ export function parseQuotationImportBuffer(buffer: Buffer, fileName: string) {
     clientName: metadata.clientName,
     projectName: metadata.projectName,
     notes: metadata.notes,
+    executionFeePercent: extractExecutionFeePercent(rows),
+    terms: extractTerms(rows),
     items,
     warnings,
   } satisfies ImportedQuotationPayload
