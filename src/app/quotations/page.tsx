@@ -1,11 +1,12 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { getNormalizedFieldValue, normalizeCapitalizedText } from '@/lib/text-format'
 import { DEFAULT_EXECUTION_FEE_PERCENT, getExecutionFeePercent, getQuotationGrandTotal } from '@/lib/quotation-total'
 
 const SHOW_RATE_STORAGE_KEY = 'space-shashtra:quotation-show-rate'
 const QUOTATION_DRAFT_STORAGE_PREFIX = 'space-shashtra:quotation-draft:v1:'
+const ACTIVE_QUOTATION_EDITOR_KEY = 'space-shashtra:quotation-editor:active:v1'
 
 const furnitureDescriptionOptionsByArea: Record<string, string[]> = {
   'Living Room': [
@@ -239,6 +240,11 @@ interface QuotationFormDraft {
   newItem: QuotationItem
   terms?: string[]
   savedAt: string
+}
+
+interface ActiveQuotationEditor {
+  draftKey: string
+  quotationId?: string
 }
 
 interface ComputedQuotationItem {
@@ -1170,6 +1176,46 @@ export default function QuotationsPage() {
   const [showRateInReport, setShowRateInReport] = useState(false)
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
   const [draftMessage, setDraftMessage] = useState('')
+  const editorRestoredRef = useRef(false)
+  const editorSnapshotRef = useRef<{
+    activeDraftKey: string | null
+    showModal: boolean
+    draft: QuotationFormDraft
+  } | null>(null)
+
+  editorSnapshotRef.current = {
+    activeDraftKey,
+    showModal,
+    draft: {
+      formData,
+      items: quotationItems,
+      newItem,
+      terms: quotationTerms,
+      savedAt: new Date().toISOString(),
+    },
+  }
+
+  const persistActiveQuotationDraft = (showSavedMessage = false) => {
+    const snapshot = editorSnapshotRef.current
+    if (!snapshot?.showModal || !snapshot.activeDraftKey) return false
+
+    try {
+      window.localStorage.setItem(snapshot.activeDraftKey, JSON.stringify({
+        ...snapshot.draft,
+        savedAt: new Date().toISOString(),
+      }))
+      if (showSavedMessage) {
+        setDraftMessage('Draft saved automatically in this browser.')
+      }
+      return true
+    } catch (error) {
+      if (showSavedMessage) {
+        setDraftMessage('Automatic draft saving is unavailable in this browser.')
+      }
+      console.error('Failed to auto-save quotation draft:', error)
+      return false
+    }
+  }
 
   useEffect(() => {
     fetchQuotations()
@@ -1199,25 +1245,33 @@ export default function QuotationsPage() {
   useEffect(() => {
     if (!showModal || !activeDraftKey || saveLoading) return
 
-    const timeout = window.setTimeout(() => {
-      try {
-        const draft: QuotationFormDraft = {
-          formData,
-          items: quotationItems,
-          newItem,
-          terms: quotationTerms,
-          savedAt: new Date().toISOString(),
-        }
-        window.localStorage.setItem(activeDraftKey, JSON.stringify(draft))
-        setDraftMessage('Draft saved automatically in this browser.')
-      } catch (error) {
-        setDraftMessage('Automatic draft saving is unavailable in this browser.')
-        console.error('Failed to auto-save quotation draft:', error)
-      }
-    }, 800)
+    const timeout = window.setTimeout(() => persistActiveQuotationDraft(true), 250)
 
     return () => window.clearTimeout(timeout)
   }, [activeDraftKey, formData, newItem, quotationItems, quotationTerms, saveLoading, showModal])
+
+  useEffect(() => {
+    if (!showModal) return
+
+    const preserveDraft = () => persistActiveQuotationDraft(false)
+    const preserveHiddenDraft = () => {
+      if (document.visibilityState === 'hidden') preserveDraft()
+    }
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      preserveDraft()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('pagehide', preserveDraft)
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    document.addEventListener('visibilitychange', preserveHiddenDraft)
+    return () => {
+      window.removeEventListener('pagehide', preserveDraft)
+      window.removeEventListener('beforeunload', warnBeforeUnload)
+      document.removeEventListener('visibilitychange', preserveHiddenDraft)
+    }
+  }, [showModal])
 
   const fetchQuotations = async () => {
     try {
@@ -1293,6 +1347,7 @@ export default function QuotationsPage() {
     fallbackFormData: QuotationFormDraft['formData'],
     fallbackItems: QuotationItem[],
     fallbackTerms: string[] = DEFAULT_QUOTATION_TERMS,
+    quotationId?: string,
     fallbackNewItem: QuotationItem = {
       area: 'Full Flat',
       category: 'Painting',
@@ -1305,6 +1360,12 @@ export default function QuotationsPage() {
     },
   ) => {
     const savedDraft = readQuotationDraft(storageKey)
+    try {
+      const activeEditor: ActiveQuotationEditor = { draftKey: storageKey, quotationId }
+      window.localStorage.setItem(ACTIVE_QUOTATION_EDITOR_KEY, JSON.stringify(activeEditor))
+    } catch (error) {
+      console.error('Failed to remember the active quotation editor:', error)
+    }
     setActiveDraftKey(storageKey)
     setFormData(savedDraft?.formData || fallbackFormData)
     setQuotationItems(savedDraft?.items || fallbackItems)
@@ -1312,6 +1373,49 @@ export default function QuotationsPage() {
     setQuotationTerms(Array.isArray(savedDraft?.terms) ? savedDraft.terms : [...fallbackTerms])
     setDraftMessage(savedDraft ? 'Recovered your automatically saved changes.' : 'Changes will be saved automatically in this browser.')
   }
+
+  useEffect(() => {
+    if (loading || editorRestoredRef.current) return
+    editorRestoredRef.current = true
+
+    try {
+      const savedEditor = window.localStorage.getItem(ACTIVE_QUOTATION_EDITOR_KEY)
+      if (!savedEditor) return
+
+      const activeEditor = JSON.parse(savedEditor) as Partial<ActiveQuotationEditor>
+      if (typeof activeEditor.draftKey !== 'string') {
+        window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+        return
+      }
+
+      const savedDraft = readQuotationDraft(activeEditor.draftKey)
+      if (!savedDraft) {
+        window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+        return
+      }
+
+      const quotation = activeEditor.quotationId
+        ? quotations.find((candidate) => candidate.id === activeEditor.quotationId) || null
+        : null
+      if (activeEditor.quotationId && !quotation) {
+        window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+        return
+      }
+
+      setEditingQuotation(quotation)
+      setCopySourceQuotation(null)
+      setActiveDraftKey(activeEditor.draftKey)
+      setFormData(savedDraft.formData)
+      setQuotationItems(savedDraft.items)
+      setNewItem(savedDraft.newItem)
+      setQuotationTerms(Array.isArray(savedDraft.terms) ? savedDraft.terms : [...DEFAULT_QUOTATION_TERMS])
+      setDraftMessage('Recovered your unsaved quotation changes after the page was reopened.')
+      setShowModal(true)
+    } catch (error) {
+      console.error('Failed to reopen the active quotation editor:', error)
+      window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+    }
+  }, [loading, quotations])
 
   const handleShowRatePreferenceChange = (checked: boolean) => {
     setShowRateInReport(checked)
@@ -1506,6 +1610,10 @@ export default function QuotationsPage() {
           updatedItem.area = 'Full Flat'
         }
       }
+      const affectsCalculation = ['quantity', 'lengthIn', 'widthIn', 'rate'].includes(field)
+      if (!affectsCalculation) {
+        return updatedItem
+      }
       const quantity = parseFloat(updatedItem.quantity) || 0
       const lengthFt = parseFloat(updatedItem.lengthIn) || 0
       const widthFt = parseFloat(updatedItem.widthIn) || 0
@@ -1579,6 +1687,26 @@ export default function QuotationsPage() {
     })
   }
 
+  const closeQuotationEditor = () => {
+    const draftSaved = persistActiveQuotationDraft(false)
+    try {
+      window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+    } catch (error) {
+      console.error('Failed to clear the active quotation editor:', error)
+    }
+    setShowModal(false)
+    setEditingQuotation(null)
+    setCopySourceQuotation(null)
+    setActiveDraftKey(null)
+    setDraftMessage('')
+    setSaveMessage({
+      type: draftSaved ? 'success' : 'error',
+      text: draftSaved
+        ? 'Quotation draft saved in this browser. Reopen the quotation to continue editing.'
+        : 'The editor was closed, but the browser could not save the draft.',
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (saveLoading) return
@@ -1647,6 +1775,11 @@ export default function QuotationsPage() {
           } catch (error) {
             console.error('Failed to clear saved quotation draft:', error)
           }
+        }
+        try {
+          window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+        } catch (error) {
+          console.error('Failed to clear the active quotation editor:', error)
         }
 
         if (savedQuotation) {
@@ -1726,13 +1859,14 @@ export default function QuotationsPage() {
       widthIn: String(item.widthCm || 0),
       rate: String(item.rate || 0),
       total: item.total,
-      manualTotal: false,
+      manualTotal: true,
     }))
     openQuotationDraft(
       `${QUOTATION_DRAFT_STORAGE_PREFIX}edit:${quotation.id}`,
       quotationFormData,
       editableItems,
       getQuotationTerms(quotation),
+      quotation.id,
     )
     setShowModal(true)
   }
@@ -1748,7 +1882,7 @@ export default function QuotationsPage() {
       widthIn: String(item.widthCm || 0),
       rate: String(item.rate || 0),
       total: item.total,
-      manualTotal: false,
+      manualTotal: true,
     }))
 
     setEditingQuotation(null)
@@ -2589,13 +2723,10 @@ export default function QuotationsPage() {
                 <button
                   type="button"
                   disabled={saveLoading}
-                  onClick={() => {
-                    setShowModal(false)
-                    setCopySourceQuotation(null)
-                  }}
+                  onClick={closeQuotationEditor}
                   className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Cancel
+                  Save Draft & Close
                 </button>
                 <button
                   type="submit"
