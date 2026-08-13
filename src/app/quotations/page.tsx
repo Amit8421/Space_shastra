@@ -186,6 +186,7 @@ interface Quotation {
   quotationNo: string
   amount: number
   executionFeePercent?: number
+  discount?: number
   status: string
   issueDate: string
   clientId: string
@@ -222,6 +223,7 @@ interface ImportedQuotationPreview {
   projectName: string
   notes: string
   executionFeePercent: number | null
+  discount: number | null
   terms: string[]
   warnings: string[]
   items: QuotationItem[]
@@ -234,6 +236,7 @@ interface QuotationFormDraft {
     projectId: string
     amount: string
     executionFeePercent: string
+    discount: string
     notes: string
     status: string
   }
@@ -477,7 +480,8 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
   const subtotal = Number(quotation.amount)
   const executionFeePercent = getExecutionFeePercent(quotation)
   const executionFee = subtotal * (executionFeePercent / 100)
-  const grandTotal = subtotal + executionFee
+  const discount = Math.max(0, Number(quotation.discount || 0))
+  const grandTotal = getQuotationGrandTotal(quotation)
   const noteRows = getQuotationNoteLines(quotation.notes)
     .map((note) => `<li>${escapeHtml(note)}</li>`)
     .join('')
@@ -1023,6 +1027,11 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
                   <td class="center">${executionFeePercent.toFixed(2).replace(/\.00$/, '')}%</td>
                   <td class="amount">${formatCurrencyWithSymbol(executionFee)}</td>
                 </tr>
+                ${discount > 0 ? `
+                <tr>
+                  <td colspan="${showRate ? 6 : 5}" class="summary-label amount">Discount</td>
+                  <td class="amount">-${formatCurrencyWithSymbol(discount)}</td>
+                </tr>` : ''}
                 <tr>
                   <td colspan="${showRate ? 6 : 5}" class="summary-accent center">Grand Total</td>
                   <td class="summary-final amount">${formatCurrencyWithSymbol(grandTotal)}</td>
@@ -1049,6 +1058,11 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
                     <td>Execution fee</td>
                     <td class="amount"><strong>${formatCurrencyWithSymbol(executionFee)} (${executionFeePercent.toFixed(2).replace(/\.00$/, '')}%)</strong></td>
                   </tr>
+                  ${discount > 0 ? `
+                  <tr>
+                    <td>Discount</td>
+                    <td class="amount"><strong>-${formatCurrencyWithSymbol(discount)}</strong></td>
+                  </tr>` : ''}
                   <tr>
                     <td>Final grand total</td>
                     <td class="amount"><strong>${formatCurrencyWithSymbol(grandTotal)}</strong></td>
@@ -1169,6 +1183,7 @@ export default function QuotationsPage() {
     projectId: '',
     amount: '',
     executionFeePercent: '0',
+    discount: '0',
     notes: '',
     status: 'draft'
   })
@@ -1337,7 +1352,13 @@ export default function QuotationsPage() {
         return null
       }
 
-      return parsedDraft as QuotationFormDraft
+      return {
+        ...parsedDraft,
+        formData: {
+          ...parsedDraft.formData,
+          discount: parsedDraft.formData.discount ?? '0',
+        },
+      } as QuotationFormDraft
     } catch (error) {
       console.error('Failed to restore quotation draft:', error)
       return null
@@ -1480,6 +1501,7 @@ export default function QuotationsPage() {
       projectId: matchedProjectId,
       amount: String(calculateTotal(importedItems)),
       executionFeePercent: String(importPreview.executionFeePercent ?? 0),
+      discount: String(importPreview.discount ?? 0),
       notes: importPreview.notes || '',
       status: 'draft',
     }
@@ -1527,6 +1549,7 @@ export default function QuotationsPage() {
         executionFeePercent: Number.isFinite(Number(data.executionFeePercent))
           ? Number(data.executionFeePercent)
           : null,
+        discount: Number.isFinite(Number(data.discount)) ? Math.max(0, Number(data.discount)) : null,
         terms: Array.isArray(data.terms) ? data.terms.filter((term: unknown) => typeof term === 'string' && term.trim()) : [],
         warnings: Array.isArray(data.warnings) ? data.warnings : [],
         items: Array.isArray(data.items)
@@ -1750,6 +1773,7 @@ export default function QuotationsPage() {
         ...formData,
         amount,
         executionFeePercent: Number(formData.executionFeePercent) || 0,
+        discount: Math.max(0, Number(formData.discount) || 0),
         notes: formData.notes,
         quotationNo: formData.quotationNo || `QT-${Date.now()}`,
         items: itemData,
@@ -1812,6 +1836,7 @@ export default function QuotationsPage() {
           projectId: '',
           amount: '',
           executionFeePercent: '0',
+          discount: '0',
           notes: '',
           status: 'draft'
         })
@@ -1849,6 +1874,7 @@ export default function QuotationsPage() {
       projectId: quotation.projectId,
       amount: quotation.amount.toString(),
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      discount: String(quotation.discount ?? 0),
       notes: quotation.notes || '',
       status: quotation.status,
     }
@@ -1896,6 +1922,7 @@ export default function QuotationsPage() {
       projectId: '',
       amount: calculateTotal(copiedItems).toString(),
       executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      discount: String(quotation.discount ?? 0),
       notes: quotation.notes || '',
       status: 'draft',
     }
@@ -1946,6 +1973,7 @@ export default function QuotationsPage() {
         projectId: '',
         amount: '',
         executionFeePercent: '0',
+        discount: '0',
         notes: '',
         status: 'draft',
       },
@@ -2142,6 +2170,7 @@ export default function QuotationsPage() {
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                   <span className="font-semibold">Additional details detected:</span>{' '}
                   Execution fee {importPreview.executionFeePercent ?? 0}% and {importPreview.terms.length} terms and conditions.
+                  {(importPreview.discount ?? 0) > 0 && ` Discount ${formatCurrencyWithSymbol(importPreview.discount || 0)} will be applied.`}
                   Imported line amounts will be preserved exactly where provided.
                 </div>
 
@@ -2322,6 +2351,20 @@ export default function QuotationsPage() {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Discount Amount (Optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    name="discount"
+                    value={formData.discount}
+                    onChange={handleInputChange}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Shown in the report only when greater than zero.</p>
+                </div>
               </div>
 
               <div className="mb-4">
@@ -2615,7 +2658,8 @@ export default function QuotationsPage() {
                       const subtotal = calculateTotal(quotationItems) || 0
                       const executionFeePercent = formData?.executionFeePercent ? Number(formData.executionFeePercent) : 0
                       const executionFee = subtotal * (executionFeePercent / 100)
-                      const grandTotal = subtotal + executionFee
+                      const discount = Math.max(0, Number(formData.discount) || 0)
+                      const grandTotal = Math.max(0, subtotal + executionFee - discount)
                       
                       return (
                         <>
@@ -2623,15 +2667,16 @@ export default function QuotationsPage() {
                             Current subtotal: ₹{subtotal.toFixed(2)}
                           </p>
                           {executionFeePercent > 0 && (
-                            <>
-                              <p className="text-sm text-gray-600">
-                                Execution fee ({executionFeePercent}%): ₹{executionFee.toFixed(2)}
-                              </p>
-                              <p className="text-lg font-bold text-black border-t pt-2">
-                                Final Total: ₹{grandTotal.toFixed(2)}
-                              </p>
-                            </>
+                            <p className="text-sm text-gray-600">
+                              Execution fee ({executionFeePercent}%): ₹{executionFee.toFixed(2)}
+                            </p>
                           )}
+                          {discount > 0 && (
+                            <p className="text-sm text-emerald-700">Discount: -₹{discount.toFixed(2)}</p>
+                          )}
+                          <p className="text-lg font-bold text-black border-t pt-2">
+                            Final Total: ₹{grandTotal.toFixed(2)}
+                          </p>
                         </>
                       )
                     } catch (error) {
@@ -2768,7 +2813,8 @@ export default function QuotationsPage() {
         const subtotal = Number(viewingQuotation.amount || 0)
         const executionFeePercent = getExecutionFeePercent(viewingQuotation)
         const executionFee = subtotal * (executionFeePercent / 100)
-        const grandTotal = subtotal + executionFee
+        const discount = Math.max(0, Number(viewingQuotation.discount || 0))
+        const grandTotal = getQuotationGrandTotal(viewingQuotation)
         const clientName = `${viewingQuotation.client.firstName} ${viewingQuotation.client.lastName}`.trim()
         const noteLines = getQuotationNoteLines(viewingQuotation.notes)
 
@@ -2921,6 +2967,12 @@ export default function QuotationsPage() {
                         </td>
                         <td className="border border-[#b8cfdf] px-3 py-3 text-right">{formatCurrencyWithSymbol(executionFee)}</td>
                       </tr>
+                      {discount > 0 && (
+                        <tr>
+                          <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right font-semibold">Discount</td>
+                          <td className="border border-[#b8cfdf] px-3 py-3 text-right font-semibold text-emerald-700">-{formatCurrencyWithSymbol(discount)}</td>
+                        </tr>
+                      )}
                       <tr className="bg-[linear-gradient(180deg,#d6ebf8_0%,#b5d3e8_100%)]">
                         <td colSpan={5} className="border border-[#b8cfdf] px-3 py-3 text-right text-base font-bold">Grand Total</td>
                         <td className="border border-[#b8cfdf] px-3 py-3 text-right text-base font-bold">{formatCurrencyWithSymbol(grandTotal)}</td>
@@ -2955,6 +3007,12 @@ export default function QuotationsPage() {
                         <span>Execution fee</span>
                         <span className="font-semibold">{formatCurrencyWithSymbol(executionFee)} ({executionFeePercent.toFixed(2).replace(/\.00$/, '')}%)</span>
                       </div>
+                      {discount > 0 && (
+                        <div className="flex items-center justify-between border-b border-dashed border-[#c8dbe8] pb-3">
+                          <span>Discount</span>
+                          <span className="font-semibold text-emerald-700">-{formatCurrencyWithSymbol(discount)}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-base">
                         <span className="font-bold">Final grand total</span>
                         <span className="font-bold text-[#234d72]">{formatCurrencyWithSymbol(grandTotal)}</span>

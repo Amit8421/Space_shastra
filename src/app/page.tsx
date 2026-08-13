@@ -37,7 +37,7 @@ export default async function Home() {
         projects: { select: { id: true } },
         quotations: {
           where: { status: 'accepted' },
-          select: { amount: true, executionFeePercent: true },
+          select: { amount: true, executionFeePercent: true, discount: true },
         },
         transactions: {
           where: { type: { in: ['payment', 'credit payment'] } },

@@ -29,6 +29,7 @@ export async function PUT(
       const data: any = {
         ...quotationFields,
         executionFeePercent: Number(quotationFields.executionFeePercent) || 0,
+        discount: Math.max(0, Number(quotationFields.discount) || 0),
         notes: normalizeTextField(quotationFields.notes),
         ...(normalizedTerms !== undefined ? { terms: normalizedTerms } : {}),
       }

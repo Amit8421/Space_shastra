@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
           projectId: body.projectId,
           amount: body.amount,
           executionFeePercent: Number(body.executionFeePercent) || 0,
+          discount: Math.max(0, Number(body.discount) || 0),
           status: body.status || 'draft',
           notes: normalizeTextField(body.notes),
           ...(terms !== undefined ? { terms } : {}),

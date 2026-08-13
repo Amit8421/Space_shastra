@@ -18,6 +18,7 @@ export type ImportedQuotationPayload = {
   projectName: string
   notes: string
   executionFeePercent: number | null
+  discount: number | null
   terms: string[]
   items: ImportedQuotationItem[]
   warnings: string[]
@@ -491,6 +492,7 @@ function parseStructuredQuotationSheet(rows: unknown[][], fileName: string) {
     projectName: metadata.projectName,
     notes: metadata.notes,
     executionFeePercent: extractExecutionFeePercent(rows),
+    discount: null,
     terms: extractTerms(rows),
     items,
     warnings,
@@ -602,6 +604,7 @@ export function parseQuotationImportBuffer(buffer: Buffer, fileName: string) {
     projectName: metadata.projectName,
     notes: metadata.notes,
     executionFeePercent: extractExecutionFeePercent(rows),
+    discount: null,
     terms: extractTerms(rows),
     items,
     warnings,

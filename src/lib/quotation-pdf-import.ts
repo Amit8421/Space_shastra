@@ -357,7 +357,7 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
   if (!quotationNo) warnings.push('Quotation number was not detected. A new number will be generated if you leave it empty.')
   if (terms.length === 0) warnings.push('Terms and conditions were not detected in the PDF. Default terms will be used.')
   if (discount > 0) {
-    warnings.push(`This PDF applies a discount of Rs. ${discount.toFixed(2)} after the execution fee. The current quotation form has no discount field, so verify the final total before saving.`)
+    warnings.push(`A discount of Rs. ${discount.toFixed(2)} was detected and will be applied after the execution fee.`)
   }
   warnings.push('PDF positions can vary between templates. Review all imported rows, areas, rates, and totals before saving.')
 
@@ -367,8 +367,9 @@ export async function parseQuotationPdfBuffer(buffer: Buffer, fileName: string):
     quotationNo,
     clientName,
     projectName,
-    notes: discount > 0 ? `Imported PDF discount: Rs. ${discount.toFixed(2)} (not automatically applied).` : '',
+    notes: '',
     executionFeePercent,
+    discount,
     terms,
     items,
     warnings,

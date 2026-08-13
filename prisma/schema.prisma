@@ -67,19 +67,19 @@ model Vendor {
 }
 
 model VendorAccount {
-  id             String               @id @default(cuid())
+  id             String                       @id @default(cuid())
   vendorId       String
   projectId      String
-  openingBalance Float                @default(0)
-  currentBalance Float                @default(0)
-  status         String               @default("active")
+  openingBalance Float                        @default(0)
+  currentBalance Float                        @default(0)
+  status         String                       @default("active")
   notes          String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
   entries        VendorAccountEntry[]
   furnitureItems VendorAccountFurnitureItem[]
-  project        Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  vendor         Vendor               @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  project        Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendor         Vendor                       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@unique([vendorId, projectId])
   @@map("vendor_accounts")
@@ -160,48 +160,49 @@ model InvoiceItem {
 }
 
 model Quotation {
-  id                  String          @id @default(cuid())
-  quotationNo         String          @unique
-  clientId            String
-  projectId           String
-  issueDate           DateTime        @default(now())
-  dueDate             DateTime?
-  amount              Float
-  status              String          @default("draft")
-  notes               String?
-  terms               Json?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  executionFeePercent Float           @default(0)
-  items               QuotationItem[]
+  id                   String                       @id @default(cuid())
+  quotationNo          String                       @unique
+  clientId             String
+  projectId            String
+  issueDate            DateTime                     @default(now())
+  dueDate              DateTime?
+  amount               Float
+  status               String                       @default("draft")
+  notes                String?
+  terms                Json?
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  executionFeePercent  Float                        @default(0)
+  discount             Float                        @default(0)
+  items                QuotationItem[]
   vendorFurnitureItems VendorAccountFurnitureItem[]
-  client              Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  project             Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  client               Client                       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project              Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("quotations")
 }
 
 model QuotationItem {
-  id          String    @id @default(cuid())
-  quotationId String
-  description String
-  quantity    Float
-  total       Float
-  createdAt   DateTime  @default(now())
-  area        String
-  category    String
-  areaSqFt    Float?
-  lengthCm    Float?
-  rate        Float?
+  id                   String                       @id @default(cuid())
+  quotationId          String
+  description          String
+  quantity             Float
+  total                Float
+  createdAt            DateTime                     @default(now())
+  area                 String
+  category             String
+  areaSqFt             Float?
+  lengthCm             Float?
+  rate                 Float?
   vendorFurnitureItems VendorAccountFurnitureItem[]
-  widthCm     Float?
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  widthCm              Float?
+  quotation            Quotation                    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 
   @@map("quotation_items")
 }
 
 model VendorAccountFurnitureItem {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   vendorAccountId String
   quotationId     String?
   quotationItemId String?
@@ -213,12 +214,12 @@ model VendorAccountFurnitureItem {
   widthCm         Float?
   areaSqFt        Float?
   quotationRate   Float?
-  vendorRate      Float         @default(0)
-  vendorTotal     Float         @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  vendorAccount   VendorAccount @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
-  quotation       Quotation?    @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  vendorRate      Float          @default(0)
+  vendorTotal     Float          @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  vendorAccount   VendorAccount  @relation(fields: [vendorAccountId], references: [id], onDelete: Cascade)
+  quotation       Quotation?     @relation(fields: [quotationId], references: [id], onDelete: SetNull)
   quotationItem   QuotationItem? @relation(fields: [quotationItemId], references: [id], onDelete: SetNull)
 
   @@unique([vendorAccountId, quotationItemId])

@@ -10,7 +10,7 @@ export async function POST(_request: NextRequest) {
       }),
       prisma.quotation.findMany({
         where: { status: 'accepted' },
-        select: { clientId: true, amount: true, executionFeePercent: true },
+        select: { clientId: true, amount: true, executionFeePercent: true, discount: true },
       }),
       prisma.transaction.findMany({
         where: { type: { in: ['credit payment', 'payment'] } },
