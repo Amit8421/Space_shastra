@@ -90,6 +90,7 @@ const COMPANY_DETAILS = {
   proprietor: 'Prop : Rajshree S. Bagul.',
   address: 'Dynasty Society, Near Chhatrapati Chowk, Kaspate Waste, Wakad Pune. 411057',
   mobile: '7775000900',
+  gstin: '27BRJPB7632L1ZI',
 }
 const PAYMENT_DETAILS = {
   accountName: 'Space Shashtra Interiors',
@@ -967,7 +968,8 @@ function buildQuotationPrintHtml(quotation: Quotation, showRate: boolean = false
                   <div class="brand-copy">
                     ${COMPANY_DETAILS.proprietor}<br>
                     ${COMPANY_DETAILS.address}<br>
-                    Mob.: ${COMPANY_DETAILS.mobile}
+                    Mob.: ${COMPANY_DETAILS.mobile}<br>
+                    GSTIN: ${COMPANY_DETAILS.gstin}
                   </div>
                 </div>
               </div>
@@ -2853,6 +2855,7 @@ export default function QuotationsPage() {
                       <p>{COMPANY_DETAILS.proprietor}</p>
                       <p>{COMPANY_DETAILS.address}</p>
                       <p>Mob.: {COMPANY_DETAILS.mobile}</p>
+                      <p>GSTIN: {COMPANY_DETAILS.gstin}</p>
                     </div>
                   </div>
                   <div className="overflow-hidden rounded-2xl border border-[#b8cfdf] bg-[linear-gradient(180deg,#ffffff_0%,#edf6fc_100%)]">

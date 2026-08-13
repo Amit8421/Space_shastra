@@ -359,6 +359,7 @@ export default function ClientsPage() {
             <div>
               <div class="brand-name">Space Shastra Interiors</div>
               <div class="brand-tag">Client account statement</div>
+              <div class="brand-tag"><strong>GSTIN:</strong> 27BRJPB7632L1ZI</div>
             </div>
           </div>
           <h1>Client Account Report</h1>

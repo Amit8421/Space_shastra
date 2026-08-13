@@ -453,6 +453,7 @@ export default function ProjectsPage() {
             <div>
               <div class="brand-name">Space Shastra Interiors</div>
               <div class="brand-subtitle">Project account statement</div>
+              <div class="brand-subtitle"><strong>GSTIN:</strong> 27BRJPB7632L1ZI</div>
             </div>
           </div>
           <h1>Project Account Report</h1>

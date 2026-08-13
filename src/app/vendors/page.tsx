@@ -734,6 +734,7 @@ export default function VendorsPage() {
               <div class="brand-copy">
                 <div class="brand-name">Space Shastra Interiors</div>
                 <h1>Vendor Project Report</h1>
+                <p class="meta"><strong>GSTIN:</strong> 27BRJPB7632L1ZI</p>
                 <p class="meta">Vendor: ${escapeHtml(selectedVendor.name)}</p>
                 <p class="meta">Project: ${escapeHtml(selectedAccount.project.name)}</p>
                 <p class="meta">Status: ${escapeHtml(selectedAccount.status)}</p>
