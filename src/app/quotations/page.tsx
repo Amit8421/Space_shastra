@@ -1504,6 +1504,11 @@ export default function QuotationsPage() {
     setShowImportModal(true)
   }
 
+  const closeImportModal = () => {
+    resetImportState()
+    setShowImportModal(false)
+  }
+
   const applyImportedQuotation = () => {
     if (!importPreview) return
 
@@ -2131,10 +2136,7 @@ export default function QuotationsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  resetImportState()
-                  setShowImportModal(false)
-                }}
+                onClick={closeImportModal}
                 className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
               >
                 Close
@@ -2267,6 +2269,13 @@ export default function QuotationsPage() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
+                  onClick={closeImportModal}
+                  className="rounded border border-gray-300 px-4 py-2 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     resetImportState()
                   }}
@@ -2292,9 +2301,19 @@ export default function QuotationsPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-50 sm:flex sm:items-center sm:justify-center sm:p-4">
           <div className="h-[100dvh] w-full max-w-full overflow-x-hidden overflow-y-auto bg-white p-3 shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-6xl sm:rounded-lg sm:p-6">
-            <h3 className="text-xl font-bold mb-4">
-              {editingQuotation ? 'Edit Quotation' : copySourceQuotation ? 'Copy Quotation' : 'Create New Quotation'}
-            </h3>
+            <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200 pb-3">
+              <h3 className="text-xl font-bold">
+                {editingQuotation ? 'Edit Quotation' : copySourceQuotation ? 'Copy Quotation' : 'Create New Quotation'}
+              </h3>
+              <button
+                type="button"
+                disabled={saveLoading}
+                onClick={closeQuotationEditor}
+                className="shrink-0 rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+              >
+                Save Draft & Close
+              </button>
+            </div>
             {copySourceQuotation && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                 Copying items and notes from quotation <strong>{copySourceQuotation.quotationNo}</strong>. Select the new client and project, then save to create a separate quotation.
@@ -3112,6 +3131,15 @@ export default function QuotationsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="flex justify-end border-t border-[#b7cade] bg-white px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setViewingQuotation(null)}
+                className="rounded-full border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
             </div>
             {/*
               <div>
