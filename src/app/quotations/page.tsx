@@ -1715,29 +1715,8 @@ export default function QuotationsPage() {
     })
   }
 
-  const closeQuotationEditor = () => {
-    const draftSaved = persistActiveQuotationDraft(false)
-    try {
-      window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
-    } catch (error) {
-      console.error('Failed to clear the active quotation editor:', error)
-    }
-    setShowModal(false)
-    setEditingQuotation(null)
-    setCopySourceQuotation(null)
-    setActiveDraftKey(null)
-    setDraftMessage('')
-    setSaveMessage({
-      type: draftSaved ? 'success' : 'error',
-      text: draftSaved
-        ? 'Quotation draft saved in this browser. Reopen the quotation to continue editing.'
-        : 'The editor was closed, but the browser could not save the draft.',
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (saveLoading) return
+  const saveQuotation = async (successText?: string) => {
+    if (saveLoading) return false
 
     try {
       setSaveLoading(true)
@@ -1830,7 +1809,7 @@ export default function QuotationsPage() {
         setDraftMessage('')
         setSaveMessage({
           type: 'success',
-          text: isEditing ? 'Quotation updated successfully.' : 'Quotation created successfully.',
+          text: successText || (isEditing ? 'Quotation updated successfully.' : 'Quotation created successfully.'),
         })
         setFormData({
           quotationNo: '',
@@ -1845,12 +1824,14 @@ export default function QuotationsPage() {
         setQuotationItems([])
         setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
         setQuotationTerms([...DEFAULT_QUOTATION_TERMS])
+        return true
       } else {
         setSaveMessage({
           type: 'error',
           text: savedQuotation?.error || 'Failed to save quotation. Please try again.',
         })
         console.error('Failed to save quotation')
+        return false
       }
     } catch (error) {
       const isTimeout = error instanceof DOMException && error.name === 'AbortError'
@@ -1861,9 +1842,44 @@ export default function QuotationsPage() {
           : 'Failed to save quotation. Please check your connection and try again.',
       })
       console.error('Error saving quotation:', error)
+      return false
     } finally {
       setSaveLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await saveQuotation()
+  }
+
+  const closeQuotationEditor = async () => {
+    const draftSaved = persistActiveQuotationDraft(false)
+
+    if (editingQuotation) {
+      if (!draftSaved) {
+        setDraftMessage('The browser backup was unavailable. Saving the quotation to the server now.')
+      }
+      await saveQuotation('Quotation draft saved and quotation updated successfully.')
+      return
+    }
+
+    try {
+      window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+    } catch (error) {
+      console.error('Failed to clear the active quotation editor:', error)
+    }
+    setShowModal(false)
+    setEditingQuotation(null)
+    setCopySourceQuotation(null)
+    setActiveDraftKey(null)
+    setDraftMessage('')
+    setSaveMessage({
+      type: draftSaved ? 'success' : 'error',
+      text: draftSaved
+        ? 'Quotation draft saved in this browser. Reopen it to continue editing.'
+        : 'The editor was closed, but the browser could not save the draft.',
+    })
   }
 
   const handleEdit = (quotation: Quotation) => {
