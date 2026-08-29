@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  if (body.action !== 'inspect') {
+  if (body.action !== 'inspect' && body.action !== 'apply') {
     return NextResponse.json({ error: 'Unsupported repair action' }, { status: 400 })
   }
 
@@ -42,6 +42,62 @@ export async function POST(request: NextRequest) {
   const projectName = normalize(quotation.project.name)
   if (!clientName.includes('radha') || !clientName.includes('rung') || !projectName.includes('anshul')) {
     return NextResponse.json({ error: 'Target identity check failed' }, { status: 409 })
+  }
+
+  if (body.action === 'apply') {
+    if (quotation.status !== 'draft') {
+      return NextResponse.json({ error: 'Repair stopped because the quotation is no longer a draft' }, { status: 409 })
+    }
+
+    const extraStorage = quotation.items.find((item) => normalize(item.description) === 'extra storage')
+    const tvUnit = quotation.items.find((item) => normalize(item.description) === 't v unit')
+    const floorGuard = quotation.items.find((item) => normalize(item.description) === 'floor guard')
+    if (!extraStorage || !tvUnit) {
+      return NextResponse.json({ error: 'Required quotation items were not found' }, { status: 409 })
+    }
+
+    const repaired = await prisma.$transaction(async (tx) => {
+      await tx.quotationItem.update({
+        where: { id: extraStorage.id },
+        data: { quantity: 1, lengthCm: 6.1, widthCm: 8, rate: 1350, areaSqFt: 48.8, total: 65880 },
+      })
+      await tx.quotationItem.update({
+        where: { id: tvUnit.id },
+        data: { quantity: 1, lengthCm: 5.7, widthCm: 7, rate: 1400, areaSqFt: 39.9, total: 55860 },
+      })
+      if (floorGuard) {
+        await tx.quotationItem.delete({ where: { id: floorGuard.id } })
+      }
+      await tx.quotation.update({
+        where: { id: quotation.id },
+        data: { amount: 1553055, executionFeePercent: 7, discount: 0 },
+      })
+
+      const updated = await tx.quotation.findUnique({
+        where: { id: quotation.id },
+        include: { items: true },
+      })
+      if (!updated) throw new Error('Quotation could not be verified after repair')
+
+      const itemTotal = updated.items.reduce((sum, item) => sum + item.total, 0)
+      if (Math.abs(itemTotal - 1553055) > 0.01 || updated.items.length !== 49) {
+        throw new Error('Post-repair total verification failed')
+      }
+
+      return { quotation: updated, itemTotal }
+    })
+
+    return NextResponse.json({
+      ok: true,
+      quotationNo: repaired.quotation.quotationNo,
+      amount: repaired.quotation.amount,
+      executionFeePercent: repaired.quotation.executionFeePercent,
+      discount: repaired.quotation.discount,
+      itemTotal: repaired.itemTotal,
+      itemCount: repaired.quotation.items.length,
+      grandTotal: repaired.quotation.amount * 1.07,
+      updatedAt: repaired.quotation.updatedAt,
+    })
   }
 
   return NextResponse.json({
