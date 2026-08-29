@@ -190,6 +190,7 @@ interface Quotation {
   discount?: number
   status: string
   issueDate: string
+  updatedAt: string
   clientId: string
   projectId: string
   notes?: string
@@ -289,6 +290,12 @@ const formatDisplayDate = (value: string) =>
     month: '2-digit',
     year: 'numeric',
   })
+
+const blankWhenZero = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return ''
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue === 0 ? '' : String(value)
+}
 
 const escapeHtml = (value: string) =>
   value
@@ -1184,13 +1191,13 @@ export default function QuotationsPage() {
     clientId: '',
     projectId: '',
     amount: '',
-    executionFeePercent: '0',
-    discount: '0',
+    executionFeePercent: '',
+    discount: '',
     notes: '',
     status: 'draft'
   })
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
-  const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+  const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '', widthIn: '', rate: '', total: 0 })
   const [quotationTerms, setQuotationTerms] = useState<string[]>([...DEFAULT_QUOTATION_TERMS])
   const [showRateInReport, setShowRateInReport] = useState(false)
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
@@ -1358,7 +1365,20 @@ export default function QuotationsPage() {
         ...parsedDraft,
         formData: {
           ...parsedDraft.formData,
-          discount: parsedDraft.formData.discount ?? '0',
+          executionFeePercent: blankWhenZero(parsedDraft.formData.executionFeePercent),
+          discount: blankWhenZero(parsedDraft.formData.discount),
+        },
+        items: parsedDraft.items.map((item) => ({
+          ...item,
+          lengthIn: blankWhenZero(item.lengthIn),
+          widthIn: blankWhenZero(item.widthIn),
+          rate: blankWhenZero(item.rate),
+        })),
+        newItem: {
+          ...parsedDraft.newItem,
+          lengthIn: blankWhenZero(parsedDraft.newItem.lengthIn),
+          widthIn: blankWhenZero(parsedDraft.newItem.widthIn),
+          rate: blankWhenZero(parsedDraft.newItem.rate),
         },
       } as QuotationFormDraft
     } catch (error) {
@@ -1378,9 +1398,9 @@ export default function QuotationsPage() {
       category: 'Painting',
       description: '',
       quantity: '1',
-      lengthIn: '0',
-      widthIn: '0',
-      rate: '0',
+      lengthIn: '',
+      widthIn: '',
+      rate: '',
       total: 0,
     },
   ) => {
@@ -1502,8 +1522,8 @@ export default function QuotationsPage() {
       clientId: matchedClientId,
       projectId: matchedProjectId,
       amount: String(calculateTotal(importedItems)),
-      executionFeePercent: String(importPreview.executionFeePercent ?? 0),
-      discount: String(importPreview.discount ?? 0),
+      executionFeePercent: blankWhenZero(importPreview.executionFeePercent),
+      discount: blankWhenZero(importPreview.discount),
       notes: importPreview.notes || '',
       status: 'draft',
     }
@@ -1560,9 +1580,9 @@ export default function QuotationsPage() {
               area: isFurnitureCategory(item.category || 'Furniture') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
               description: item.description || '',
               quantity: String(item.quantity || '1'),
-              lengthIn: String(item.lengthIn || '0'),
-              widthIn: String(item.widthIn || '0'),
-              rate: String(item.rate || '0'),
+              lengthIn: blankWhenZero(item.lengthIn),
+              widthIn: blankWhenZero(item.widthIn),
+              rate: blankWhenZero(item.rate),
               total: Number(item.total || 0),
               manualTotal: Boolean(item.manualTotal),
             }))
@@ -1676,7 +1696,7 @@ export default function QuotationsPage() {
         ...formData,
         amount: calculateTotal(updatedItems).toString(),
       })
-      setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+      setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '', widthIn: '', rate: '', total: 0 })
     }
   }
 
@@ -1793,9 +1813,10 @@ export default function QuotationsPage() {
         if (savedQuotation) {
           setQuotations((currentQuotations) => {
             if (isEditing) {
-              return currentQuotations.map((quotation) =>
-                quotation.id === savedQuotation.id ? savedQuotation : quotation,
-              )
+              return [
+                savedQuotation,
+                ...currentQuotations.filter((quotation) => quotation.id !== savedQuotation.id),
+              ]
             }
 
             return [savedQuotation, ...currentQuotations]
@@ -1816,13 +1837,13 @@ export default function QuotationsPage() {
           clientId: '',
           projectId: '',
           amount: '',
-          executionFeePercent: '0',
-          discount: '0',
+          executionFeePercent: '',
+          discount: '',
           notes: '',
           status: 'draft'
         })
         setQuotationItems([])
-        setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '0', widthIn: '0', rate: '0', total: 0 })
+        setNewItem({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '', widthIn: '', rate: '', total: 0 })
         setQuotationTerms([...DEFAULT_QUOTATION_TERMS])
         return true
       } else {
@@ -1891,8 +1912,8 @@ export default function QuotationsPage() {
       clientId: quotation.clientId,
       projectId: quotation.projectId,
       amount: quotation.amount.toString(),
-      executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
-      discount: String(quotation.discount ?? 0),
+      executionFeePercent: blankWhenZero(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      discount: blankWhenZero(quotation.discount),
       notes: quotation.notes || '',
       status: quotation.status,
     }
@@ -1902,9 +1923,9 @@ export default function QuotationsPage() {
       area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       description: item.description,
       quantity: String(item.quantity),
-      lengthIn: String(item.lengthCm || 0),
-      widthIn: String(item.widthCm || 0),
-      rate: String(item.rate || 0),
+      lengthIn: blankWhenZero(item.lengthCm),
+      widthIn: blankWhenZero(item.widthCm),
+      rate: blankWhenZero(item.rate),
       total: item.total,
       manualTotal: true,
     }))
@@ -1925,9 +1946,9 @@ export default function QuotationsPage() {
       area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       description: item.description,
       quantity: String(item.quantity),
-      lengthIn: String(item.lengthCm || 0),
-      widthIn: String(item.widthCm || 0),
-      rate: String(item.rate || 0),
+      lengthIn: blankWhenZero(item.lengthCm),
+      widthIn: blankWhenZero(item.widthCm),
+      rate: blankWhenZero(item.rate),
       total: item.total,
       manualTotal: true,
     }))
@@ -1939,8 +1960,8 @@ export default function QuotationsPage() {
       clientId: '',
       projectId: '',
       amount: calculateTotal(copiedItems).toString(),
-      executionFeePercent: String(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
-      discount: String(quotation.discount ?? 0),
+      executionFeePercent: blankWhenZero(quotation.executionFeePercent ?? DEFAULT_EXECUTION_FEE_PERCENT),
+      discount: blankWhenZero(quotation.discount),
       notes: quotation.notes || '',
       status: 'draft',
     }
@@ -1990,8 +2011,8 @@ export default function QuotationsPage() {
         clientId: '',
         projectId: '',
         amount: '',
-        executionFeePercent: '0',
-        discount: '0',
+        executionFeePercent: '',
+        discount: '',
         notes: '',
         status: 'draft',
       },
@@ -2269,8 +2290,8 @@ export default function QuotationsPage() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-6xl overflow-y-auto max-h-[92vh] shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-50 sm:flex sm:items-center sm:justify-center sm:p-4">
+          <div className="h-[100dvh] w-full max-w-full overflow-x-hidden overflow-y-auto bg-white p-3 shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-6xl sm:rounded-lg sm:p-6">
             <h3 className="text-xl font-bold mb-4">
               {editingQuotation ? 'Edit Quotation' : copySourceQuotation ? 'Copy Quotation' : 'Create New Quotation'}
             </h3>
@@ -2378,7 +2399,6 @@ export default function QuotationsPage() {
                     name="discount"
                     value={formData.discount}
                     onChange={handleInputChange}
-                    placeholder="0"
                     className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
                   />
                   <p className="mt-1 text-xs text-gray-500">Shown in the report only when greater than zero.</p>
@@ -2426,7 +2446,7 @@ export default function QuotationsPage() {
                       </select>
                     </div>
                   )}
-                  <div className="col-span-12 sm:col-span-4">
+                  <div className="col-span-12 sm:col-span-3">
                     <label className="block text-xs font-medium mb-1">Description</label>
                     <input
                       type="text"
@@ -2502,7 +2522,12 @@ export default function QuotationsPage() {
                 {quotationItems.length > 0 && (
                   <>
                     <label className="block text-sm font-medium mb-2">Added Items</label>
-                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <div
+                      className="max-w-full overflow-x-scroll overscroll-x-contain rounded-lg border border-gray-200"
+                      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+                      tabIndex={0}
+                      aria-label="Quotation items. Swipe left or right to see all columns."
+                    >
                       <table className="min-w-[1100px] w-full text-sm">
                         <thead className="bg-gray-100">
                           <tr>
@@ -2643,7 +2668,7 @@ export default function QuotationsPage() {
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            value={item.total}
+                                            value={item.total || ''}
                                             onChange={(e) => handleItemChange(originalIndex, 'total', e.target.value)}
                                             className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
                                           />
@@ -3179,15 +3204,20 @@ export default function QuotationsPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div
+          className="max-w-full overflow-x-auto rounded-lg bg-white shadow"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}
+          tabIndex={0}
+          aria-label="Quotation list. Swipe left or right to see all columns."
+        >
+          <table className="w-full min-w-[900px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Quotation #</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Client</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Amount</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Date</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Last Updated</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Actions</th>
               </tr>
             </thead>
@@ -3206,7 +3236,7 @@ export default function QuotationsPage() {
                       {quotation.status}
                     </span>
                   </td>
-                  <td className="px-6 py-3">{new Date(quotation.issueDate).toLocaleDateString()}</td>
+                  <td className="px-6 py-3">{formatDisplayDate(quotation.updatedAt || quotation.issueDate)}</td>
                   <td className="px-6 py-3">
                     <button
                       onClick={() => openViewQuotation(quotation)}

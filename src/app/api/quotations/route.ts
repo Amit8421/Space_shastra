@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const quotations = await prisma.quotation.findMany({
       where,
       include: { client: true, project: true, items: true },
-      orderBy: { issueDate: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     })
     return NextResponse.json(quotations)
   } catch (error) {
