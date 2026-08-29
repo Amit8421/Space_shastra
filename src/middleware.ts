@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { AUTH_COOKIE_NAME } from './lib/auth-config'
 
 const PUBLIC_FILE = /\.(.*)$/
-const AUTH_ROUTES = new Set(['/login', '/api/auth/login', '/api/auth/logout'])
+const AUTH_ROUTES = new Set(['/login', '/api/auth/login', '/api/auth/logout', '/api/internal/radha-quotation-repair'])
 
 const base64UrlToBytes = (value: string) => {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
