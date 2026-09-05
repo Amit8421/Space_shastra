@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { getNormalizedFieldValue, normalizeCapitalizedText } from '@/lib/text-format'
 import { DEFAULT_EXECUTION_FEE_PERCENT, getExecutionFeePercent, getQuotationGrandTotal } from '@/lib/quotation-total'
 
@@ -380,6 +380,11 @@ const getSortedQuotationItemsWithIndex = (items: QuotationItem[]) =>
 const getFurnitureDescriptionOptions = (area?: string | null) => {
   const areaKey = getCanonicalFurnitureArea(area)
   return furnitureDescriptionOptionsByArea[areaKey] || []
+}
+const getDescriptionScopeKey = (category: string, area?: string | null) => {
+  const categoryKey = normalizeLookupValue(category) || 'other'
+  const areaKey = isRoomScopedCategory(category) ? normalizeFurnitureAreaKey(area) : 'full flat'
+  return `${categoryKey}::${areaKey}`
 }
 
 const getRoomColor = (area?: string | null) => {
@@ -1232,6 +1237,37 @@ export default function QuotationsPage() {
   })
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
   const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '', widthIn: '', rate: '', total: 0 })
+  const learnedDescriptionOptionsByScope = useMemo(() => {
+    const optionsByScope = new Map<string, Map<string, string>>()
+    const rememberDescription = (item: Pick<QuotationItem, 'area' | 'category' | 'description'>) => {
+      const description = item.description?.trim()
+      if (!description) return
+
+      const scopeKey = getDescriptionScopeKey(item.category, item.area)
+      if (!optionsByScope.has(scopeKey)) optionsByScope.set(scopeKey, new Map())
+      const descriptions = optionsByScope.get(scopeKey)!
+      const descriptionKey = normalizeLookupValue(description)
+      if (!descriptions.has(descriptionKey)) descriptions.set(descriptionKey, description)
+    }
+
+    quotations.forEach((quotation) => quotation.items.forEach(rememberDescription))
+    quotationItems.forEach(rememberDescription)
+    return optionsByScope
+  }, [quotationItems, quotations])
+  const getQuotationDescriptionOptions = (category: string, area?: string | null) => {
+    const defaultOptions = isFurnitureCategory(category) ? getFurnitureDescriptionOptions(area) : []
+    const learnedOptions = Array.from(
+      learnedDescriptionOptionsByScope.get(getDescriptionScopeKey(category, area))?.values() || [],
+    ).sort((a, b) => a.localeCompare(b))
+    const seen = new Set<string>()
+
+    return [...defaultOptions, ...learnedOptions].filter((description) => {
+      const key = normalizeLookupValue(description)
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
   const [quotationTerms, setQuotationTerms] = useState<string[]>([...DEFAULT_QUOTATION_TERMS])
   const [showRateInReport, setShowRateInReport] = useState(false)
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
@@ -2503,19 +2539,17 @@ export default function QuotationsPage() {
                     <label className="block text-xs font-medium mb-1">Description</label>
                     <input
                       type="text"
-                      list={isFurnitureCategory(newItem.category) ? 'new-furniture-description-options' : undefined}
+                      list="new-quotation-description-options"
                       value={newItem.description}
                       onChange={(e) => handleNewItemChange('description', e.target.value)}
-                      placeholder={isFurnitureCategory(newItem.category) ? 'Select or enter item description' : 'Enter item description'}
+                      placeholder="Select or enter item description"
                       className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
                     />
-                    {isFurnitureCategory(newItem.category) && (
-                      <datalist id="new-furniture-description-options">
-                        {getFurnitureDescriptionOptions(newItem.area).map((description) => (
-                          <option key={description} value={description} />
-                        ))}
-                      </datalist>
-                    )}
+                    <datalist id="new-quotation-description-options">
+                      {getQuotationDescriptionOptions(newItem.category, newItem.area).map((description) => (
+                        <option key={description} value={description} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="col-span-6 sm:col-span-1">
                     <label className="block text-xs font-medium mb-1">Qty</label>
@@ -2655,18 +2689,16 @@ export default function QuotationsPage() {
                                         <td className="px-3 py-2 text-sm">
                                           <input
                                             type="text"
-                                            list={isFurnitureCategory(item.category) ? `furniture-description-options-${originalIndex}` : undefined}
+                                            list={`quotation-description-options-${originalIndex}`}
                                             value={item.description}
                                             onChange={(e) => handleItemChange(originalIndex, 'description', e.target.value)}
                                             className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
                                           />
-                                          {isFurnitureCategory(item.category) && (
-                                            <datalist id={`furniture-description-options-${originalIndex}`}>
-                                              {getFurnitureDescriptionOptions(item.area).map((description) => (
-                                                <option key={description} value={description} />
-                                              ))}
-                                            </datalist>
-                                          )}
+                                          <datalist id={`quotation-description-options-${originalIndex}`}>
+                                            {getQuotationDescriptionOptions(item.category, item.area).map((description) => (
+                                              <option key={description} value={description} />
+                                            ))}
+                                          </datalist>
                                         </td>
                                         <td className="px-3 py-2 text-right text-sm">
                                           <input
