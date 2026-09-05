@@ -83,6 +83,7 @@ const areaOptions = [
   'Bathroom',
   'Balcony',
   'Add Ons',
+  'Full Flat',
 ]
 const categoryOptions = ['Painting', 'Furniture', 'Electrical', 'POP', 'Flooring', 'Lighting', 'Decor', 'Other']
 const COMPANY_DETAILS = {
@@ -108,9 +109,15 @@ const FULL_SCOPE_CATEGORY_ORDER = ['pop', 'electrical', 'painting']
 const FURNITURE_AREA_ORDER = [
   'entrance area',
   'living room',
+  'dining area',
+  'kitchen',
   'master bed room',
   'guest bed room',
   'kids room',
+  'bathroom',
+  'balcony',
+  'add ons',
+  'full flat',
 ]
 
 // Color scheme for room identification
@@ -325,6 +332,10 @@ const normalizeLookupValue = (value?: string | null) =>
     .replace(/\s+/g, ' ')
 
 const isFurnitureCategory = (category: string) => category.trim().toLowerCase() === 'furniture'
+const isRoomScopedCategory = (category: string) => {
+  const normalizedCategory = normalizeLookupValue(category)
+  return normalizedCategory === 'furniture' || normalizedCategory === 'other'
+}
 const furnitureAreaAliases: Record<string, string> = {
   'master bedroom': 'Master Bed Room',
   'guest bedroom': 'Guest Bed Room',
@@ -349,7 +360,7 @@ const getQuotationItemSortRank = (item: Pick<QuotationItem, 'category' | 'area'>
   const category = normalizeLookupValue(item.category)
   const fullScopeIndex = FULL_SCOPE_CATEGORY_ORDER.indexOf(category)
   if (fullScopeIndex >= 0) return [fullScopeIndex, 0] as const
-  if (isFurnitureCategory(item.category)) return [FULL_SCOPE_CATEGORY_ORDER.length, getFurnitureAreaRank(item.area)] as const
+  if (isRoomScopedCategory(item.category)) return [FULL_SCOPE_CATEGORY_ORDER.length, getFurnitureAreaRank(item.area)] as const
   return [FULL_SCOPE_CATEGORY_ORDER.length + 1, 0] as const
 }
 const getSortedQuotationItemsWithIndex = (items: QuotationItem[]) =>
@@ -379,7 +390,7 @@ const getRoomColor = (area?: string | null) => {
 const groupQuotationItemsByArea = (items: QuotationItem[]) => {
   const grouped: Record<string, QuotationItem[]> = {}
   items.forEach((item) => {
-    const area = isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat'
+    const area = isRoomScopedCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat'
     const areaKey = area.toLowerCase()
     if (!grouped[areaKey]) {
       grouped[areaKey] = []
@@ -401,7 +412,7 @@ const getComputedQuotationItems = (items: QuotationItem[]): ComputedQuotationIte
     return {
       id: item.id,
       category: item.category,
-      area: isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+      area: isRoomScopedCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       description: item.description,
       quantity,
       lengthIn: lengthFt,
@@ -415,6 +426,7 @@ const getComputedQuotationItems = (items: QuotationItem[]): ComputedQuotationIte
 const getQuotationSections = (items: ComputedQuotationItem[]): QuotationSection[] => {
   const fullScopeBuckets = new Map<string, ComputedQuotationItem[]>()
   const furnitureAreaBuckets = new Map<string, ComputedQuotationItem[]>()
+  const otherAreaBuckets = new Map<string, ComputedQuotationItem[]>()
   const categoryBuckets = new Map<string, ComputedQuotationItem[]>()
   const categoryTitles = new Map<string, string>()
 
@@ -430,6 +442,13 @@ const getQuotationSections = (items: ComputedQuotationItem[]): QuotationSection[
       const areaKey = item.area?.trim() || 'General'
       if (!furnitureAreaBuckets.has(areaKey)) furnitureAreaBuckets.set(areaKey, [])
       furnitureAreaBuckets.get(areaKey)!.push(item)
+      return
+    }
+
+    if (normalizedCategory === 'other') {
+      const areaKey = item.area?.trim() || 'Full Flat'
+      if (!otherAreaBuckets.has(areaKey)) otherAreaBuckets.set(areaKey, [])
+      otherAreaBuckets.get(areaKey)!.push(item)
       return
     }
 
@@ -466,6 +485,21 @@ const getQuotationSections = (items: ComputedQuotationItem[]): QuotationSection[
       key: 'furniture-work',
       title: 'Furniture Work',
       areaGroups: furnitureAreaGroups,
+    })
+  }
+
+  if (otherAreaBuckets.size > 0) {
+    const otherAreaGroups = Array.from(otherAreaBuckets.entries())
+      .sort(([areaA], [areaB]) => {
+        const rankDiff = getFurnitureAreaRank(areaA) - getFurnitureAreaRank(areaB)
+        return rankDiff || areaA.localeCompare(areaB)
+      })
+      .map(([area, sectionItems]) => ({ area, items: sectionItems }))
+
+    sections.push({
+      key: 'category-other',
+      title: 'Other',
+      areaGroups: otherAreaGroups,
     })
   }
 
@@ -1516,7 +1550,7 @@ export default function QuotationsPage() {
     const matchedProjectId = findMatchingProjectId(importPreview.projectName)
     const importedItems = importPreview.items.map((item) => ({
       ...item,
-      area: isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+      area: isRoomScopedCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       total: item.manualTotal ? Number(item.total || 0) : calculateItemTotal(item),
     }))
 
@@ -1582,7 +1616,7 @@ export default function QuotationsPage() {
         items: Array.isArray(data.items)
           ? data.items.map((item: any) => ({
               category: item.category || 'Furniture',
-              area: isFurnitureCategory(item.category || 'Furniture') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+              area: isRoomScopedCategory(item.category || 'Furniture') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
               description: item.description || '',
               quantity: String(item.quantity || '1'),
               lengthIn: blankWhenZero(item.lengthIn),
@@ -1606,12 +1640,12 @@ export default function QuotationsPage() {
     setNewItem((currentItem) => {
       const updatedItem = { ...currentItem, [field]: normalizedValue }
 
-      if (field === 'area' && isFurnitureCategory(updatedItem.category)) {
+      if (field === 'area' && isRoomScopedCategory(updatedItem.category)) {
         updatedItem.area = getCanonicalFurnitureArea(normalizedValue)
       }
 
       if (field === 'category') {
-        if (isFurnitureCategory(normalizedValue)) {
+        if (isRoomScopedCategory(normalizedValue)) {
           if (!currentItem.area || currentItem.area === 'Full Flat') {
             updatedItem.area = 'Living Room'
           } else {
@@ -1649,11 +1683,11 @@ export default function QuotationsPage() {
           manualTotal: true,
         }
       }
-      if (field === 'area' && isFurnitureCategory(updatedItem.category)) {
+      if (field === 'area' && isRoomScopedCategory(updatedItem.category)) {
         updatedItem.area = getCanonicalFurnitureArea(normalizedValue)
       }
       if (field === 'category') {
-        if (isFurnitureCategory(normalizedValue)) {
+        if (isRoomScopedCategory(normalizedValue)) {
           if (!item.area || item.area === 'Full Flat') {
             updatedItem.area = 'Living Room'
           } else {
@@ -1693,7 +1727,7 @@ export default function QuotationsPage() {
     if (newItem.description.trim()) {
       const itemToAdd = {
         ...newItem,
-        area: isFurnitureCategory(newItem.category) ? getCanonicalFurnitureArea(newItem.area) : 'Full Flat',
+        area: isRoomScopedCategory(newItem.category) ? getCanonicalFurnitureArea(newItem.area) : 'Full Flat',
       }
       const updatedItems = [...quotationItems, itemToAdd]
       setQuotationItems(updatedItems)
@@ -1761,7 +1795,7 @@ export default function QuotationsPage() {
 
         return {
           id: item.id,
-          area: isFurnitureCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+          area: isRoomScopedCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
           category: item.category,
           description: item.description,
           quantity,
@@ -1925,7 +1959,7 @@ export default function QuotationsPage() {
     const editableItems = quotation.items.map((item) => ({
       id: item.id,
       category: item.category || 'Painting',
-      area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+      area: isRoomScopedCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       description: item.description,
       quantity: String(item.quantity),
       lengthIn: blankWhenZero(item.lengthCm),
@@ -1948,7 +1982,7 @@ export default function QuotationsPage() {
     setSaveMessage(null)
     const copiedItems = quotation.items.map((item) => ({
       category: item.category || 'Painting',
-      area: isFurnitureCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
+      area: isRoomScopedCategory(item.category || 'Painting') ? getCanonicalFurnitureArea(item.area) : 'Full Flat',
       description: item.description,
       quantity: String(item.quantity),
       lengthIn: blankWhenZero(item.lengthCm),
@@ -2451,7 +2485,7 @@ export default function QuotationsPage() {
                       ))}
                     </select>
                   </div>
-                  {isFurnitureCategory(newItem.category) && (
+                  {isRoomScopedCategory(newItem.category) && (
                     <div className="col-span-12 sm:col-span-2">
                       <label className="block text-xs font-medium mb-1">Area</label>
                       <select
@@ -2604,7 +2638,7 @@ export default function QuotationsPage() {
                                           </select>
                                         </td>
                                         <td className="px-3 py-2 text-sm">
-                                          {isFurnitureCategory(item.category) ? (
+                                          {isRoomScopedCategory(item.category) ? (
                                             <select
                                               value={getCanonicalFurnitureArea(item.area)}
                                               onChange={(e) => handleItemChange(originalIndex, 'area', e.target.value)}
