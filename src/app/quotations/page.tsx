@@ -2488,7 +2488,7 @@ export default function QuotationsPage() {
                     <input
                       type="number"
                       min="0"
-                      step="1"
+                      step="any"
                       value={newItem.quantity}
                       onChange={(e) => handleNewItemChange('quantity', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black text-right min-w-[80px]"
@@ -2638,7 +2638,7 @@ export default function QuotationsPage() {
                                           <input
                                             type="number"
                                             min="0"
-                                            step="1"
+                                            step="any"
                                             value={item.quantity}
                                             onChange={(e) => handleItemChange(originalIndex, 'quantity', e.target.value)}
                                             className="w-full rounded border border-gray-300 px-2 py-1 text-right text-sm"
