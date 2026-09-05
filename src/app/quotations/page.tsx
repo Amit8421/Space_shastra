@@ -1949,6 +1949,27 @@ export default function QuotationsPage() {
     await saveQuotation()
   }
 
+  const dismissQuotationEditor = () => {
+    const draftSaved = persistActiveQuotationDraft(false)
+
+    try {
+      window.localStorage.removeItem(ACTIVE_QUOTATION_EDITOR_KEY)
+    } catch (error) {
+      console.error('Failed to clear the active quotation editor:', error)
+    }
+    setShowModal(false)
+    setEditingQuotation(null)
+    setCopySourceQuotation(null)
+    setActiveDraftKey(null)
+    setDraftMessage('')
+    setSaveMessage({
+      type: draftSaved ? 'success' : 'error',
+      text: draftSaved
+        ? 'Quotation closed. Unsaved changes remain available in the browser draft.'
+        : 'The editor was closed, but the browser could not preserve the draft.',
+    })
+  }
+
   const closeQuotationEditor = async () => {
     const draftSaved = persistActiveQuotationDraft(false)
 
@@ -2371,18 +2392,28 @@ export default function QuotationsPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-50 sm:flex sm:items-center sm:justify-center sm:p-4">
           <div className="h-[100dvh] w-full max-w-full overflow-x-hidden overflow-y-auto bg-white p-3 shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-6xl sm:rounded-lg sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3 border-b border-gray-200 pb-3">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3">
               <h3 className="text-xl font-bold">
                 {editingQuotation ? 'Edit Quotation' : copySourceQuotation ? 'Copy Quotation' : 'Create New Quotation'}
               </h3>
-              <button
-                type="button"
-                disabled={saveLoading}
-                onClick={closeQuotationEditor}
-                className="shrink-0 rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
-              >
-                Save Draft & Close
-              </button>
+              <div className="flex flex-wrap shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  disabled={saveLoading}
+                  onClick={dismissQuotationEditor}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  disabled={saveLoading}
+                  onClick={closeQuotationEditor}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+                >
+                  Save Draft & Close
+                </button>
+              </div>
             </div>
             {copySourceQuotation && (
               <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -2905,7 +2936,15 @@ export default function QuotationsPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={saveLoading}
+                  onClick={dismissQuotationEditor}
+                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Close
+                </button>
                 <button
                   type="button"
                   disabled={saveLoading}
