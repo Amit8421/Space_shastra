@@ -3,6 +3,22 @@ import { AUTH_COOKIE_NAME } from './lib/auth-config'
 
 const PUBLIC_FILE = /\.(.*)$/
 const AUTH_ROUTES = new Set(['/login', '/api/auth/login', '/api/auth/logout'])
+let cachedAuthSecret: string | undefined
+let cachedAuthKey: Promise<CryptoKey> | null = null
+
+const getAuthKey = (secret: string) => {
+  if (!cachedAuthKey || cachedAuthSecret !== secret) {
+    cachedAuthSecret = secret
+    cachedAuthKey = crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    )
+  }
+  return cachedAuthKey
+}
 
 const base64UrlToBytes = (value: string) => {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
@@ -25,13 +41,7 @@ const verifySessionToken = async (token?: string) => {
   const [payload, signature] = token.split('.')
   if (!payload || !signature) return false
 
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
+  const key = await getAuthKey(secret)
   const expectedSignature = bytesToBase64Url(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)))
   if (signature !== expectedSignature) return false
 

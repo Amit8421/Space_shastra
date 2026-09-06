@@ -33,7 +33,10 @@ type VendorOutstandingRow = {
 export default async function Home() {
   const [clients, vendorAccounts, activeProjects, completedProjects, recentTransactions] = await Promise.all([
     prisma.client.findMany({
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
         projects: { select: { id: true } },
         quotations: {
           where: { status: 'accepted' },
@@ -50,10 +53,13 @@ export default async function Home() {
       where: {
         currentBalance: { gt: 0 },
       },
-      include: {
-        vendor: true,
-        project: true,
-        entries: true,
+      select: {
+        vendorId: true,
+        openingBalance: true,
+        currentBalance: true,
+        vendor: { select: { name: true } },
+        project: { select: { name: true } },
+        entries: { select: { type: true, amount: true } },
       },
       orderBy: [
         { vendor: { name: 'asc' } },
@@ -63,10 +69,15 @@ export default async function Home() {
     prisma.project.count({ where: { status: 'active' } }),
     prisma.project.count({ where: { status: 'completed' } }),
     prisma.transaction.findMany({
-      include: {
-        client: true,
-        vendor: true,
-        project: true,
+      select: {
+        id: true,
+        description: true,
+        type: true,
+        amount: true,
+        date: true,
+        client: { select: { firstName: true } },
+        vendor: { select: { name: true } },
+        project: { select: { name: true } },
       },
       orderBy: { date: 'desc' },
       take: 6,

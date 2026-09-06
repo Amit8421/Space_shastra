@@ -363,20 +363,19 @@ const getQuotationItemSortRank = (item: Pick<QuotationItem, 'category' | 'area'>
   if (isRoomScopedCategory(item.category)) return [FULL_SCOPE_CATEGORY_ORDER.length, getFurnitureAreaRank(item.area)] as const
   return [FULL_SCOPE_CATEGORY_ORDER.length + 1, 0] as const
 }
-const getSortedQuotationItemsWithIndex = (items: QuotationItem[]) =>
-  items
-    .map((item, originalIndex) => ({ item, originalIndex }))
-    .sort((a, b) => {
-      const [categoryRankA, areaRankA] = getQuotationItemSortRank(a.item)
-      const [categoryRankB, areaRankB] = getQuotationItemSortRank(b.item)
-      return (
-        categoryRankA - categoryRankB ||
-        areaRankA - areaRankB ||
-        a.item.area.localeCompare(b.item.area) ||
-        a.item.description.localeCompare(b.item.description) ||
-        a.originalIndex - b.originalIndex
-      )
-    })
+type IndexedQuotationItem = { item: QuotationItem; originalIndex: number }
+const getSortedQuotationItemsWithIndex = (items: IndexedQuotationItem[]) =>
+  [...items].sort((a, b) => {
+    const [categoryRankA, areaRankA] = getQuotationItemSortRank(a.item)
+    const [categoryRankB, areaRankB] = getQuotationItemSortRank(b.item)
+    return (
+      categoryRankA - categoryRankB ||
+      areaRankA - areaRankB ||
+      a.item.area.localeCompare(b.item.area) ||
+      a.item.description.localeCompare(b.item.description) ||
+      a.originalIndex - b.originalIndex
+    )
+  })
 const getFurnitureDescriptionOptions = (area?: string | null) => {
   const areaKey = getCanonicalFurnitureArea(area)
   return furnitureDescriptionOptionsByArea[areaKey] || []
@@ -386,6 +385,8 @@ const getDescriptionScopeKey = (category: string, area?: string | null) => {
   const areaKey = isRoomScopedCategory(category) ? normalizeFurnitureAreaKey(area) : 'full flat'
   return `${categoryKey}::${areaKey}`
 }
+const getQuotationDescriptionListId = (category: string, area?: string | null) =>
+  `quotation-description-options-${getDescriptionScopeKey(category, area).replace(/[^a-z0-9]+/g, '-')}`
 
 const getRoomColor = (area?: string | null) => {
   const normalizedArea = (area ?? 'full flat').trim().toLowerCase()
@@ -393,18 +394,15 @@ const getRoomColor = (area?: string | null) => {
 }
 
 const groupQuotationItemsByArea = (items: QuotationItem[]) => {
-  const grouped: Record<string, QuotationItem[]> = {}
-  items.forEach((item) => {
+  const grouped: Record<string, IndexedQuotationItem[]> = {}
+  items.forEach((item, originalIndex) => {
     const area = isRoomScopedCategory(item.category) ? getCanonicalFurnitureArea(item.area) : 'Full Flat'
     const areaKey = area.toLowerCase()
-    if (!grouped[areaKey]) {
-      grouped[areaKey] = []
-    }
-    grouped[areaKey].push(item)
+    if (!grouped[areaKey]) grouped[areaKey] = []
+    grouped[areaKey].push({ item, originalIndex })
   })
   return grouped
 }
-
 const getComputedQuotationItems = (items: QuotationItem[]): ComputedQuotationItem[] =>
   items.map((item) => {
     const quantity = Number(item.quantity || 0)
@@ -1237,37 +1235,48 @@ export default function QuotationsPage() {
   })
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([])
   const [newItem, setNewItem] = useState<QuotationItem>({ area: 'Full Flat', category: 'Painting', description: '', quantity: '1', lengthIn: '', widthIn: '', rate: '', total: 0 })
-  const learnedDescriptionOptionsByScope = useMemo(() => {
+  const quotationDescriptionOptionsByScope = useMemo(() => {
     const optionsByScope = new Map<string, Map<string, string>>()
-    const rememberDescription = (item: Pick<QuotationItem, 'area' | 'category' | 'description'>) => {
-      const description = item.description?.trim()
+    const rememberDescription = (category: string, area: string | null | undefined, descriptionValue: string) => {
+      const description = descriptionValue.trim()
       if (!description) return
 
-      const scopeKey = getDescriptionScopeKey(item.category, item.area)
+      const scopeKey = getDescriptionScopeKey(category, area)
       if (!optionsByScope.has(scopeKey)) optionsByScope.set(scopeKey, new Map())
       const descriptions = optionsByScope.get(scopeKey)!
       const descriptionKey = normalizeLookupValue(description)
       if (!descriptions.has(descriptionKey)) descriptions.set(descriptionKey, description)
     }
 
-    quotations.forEach((quotation) => quotation.items.forEach(rememberDescription))
-    quotationItems.forEach(rememberDescription)
-    return optionsByScope
-  }, [quotationItems, quotations])
-  const getQuotationDescriptionOptions = (category: string, area?: string | null) => {
-    const defaultOptions = isFurnitureCategory(category) ? getFurnitureDescriptionOptions(area) : []
-    const learnedOptions = Array.from(
-      learnedDescriptionOptionsByScope.get(getDescriptionScopeKey(category, area))?.values() || [],
-    ).sort((a, b) => a.localeCompare(b))
-    const seen = new Set<string>()
-
-    return [...defaultOptions, ...learnedOptions].filter((description) => {
-      const key = normalizeLookupValue(description)
-      if (!key || seen.has(key)) return false
-      seen.add(key)
-      return true
+    areaOptions.forEach((area) => {
+      getFurnitureDescriptionOptions(area).forEach((description) =>
+        rememberDescription('Furniture', area, description),
+      )
     })
-  }
+    quotations.forEach((quotation) => {
+      quotation.items.forEach((item) => rememberDescription(item.category, item.area, item.description))
+    })
+
+    return new Map(
+      Array.from(optionsByScope, ([scopeKey, descriptions]) => [
+        scopeKey,
+        Array.from(descriptions.values()).sort((a, b) => a.localeCompare(b)),
+      ]),
+    )
+  }, [quotations])
+  const groupedQuotationItems = useMemo(() => {
+    const grouped = groupQuotationItemsByArea(quotationItems)
+    return Object.keys(grouped)
+      .sort((a, b) => {
+        const areaA = Object.keys(ROOM_COLORS).find((key) => key.toLowerCase() === a) || a
+        const areaB = Object.keys(ROOM_COLORS).find((key) => key.toLowerCase() === b) || b
+        return Object.keys(ROOM_COLORS).indexOf(areaA) - Object.keys(ROOM_COLORS).indexOf(areaB)
+      })
+      .map((areaKey) => ({
+        areaKey,
+        items: getSortedQuotationItemsWithIndex(grouped[areaKey]),
+      }))
+  }, [quotationItems])
   const [quotationTerms, setQuotationTerms] = useState<string[]>([...DEFAULT_QUOTATION_TERMS])
   const [showRateInReport, setShowRateInReport] = useState(false)
   const [activeDraftKey, setActiveDraftKey] = useState<string | null>(null)
@@ -1341,7 +1350,7 @@ export default function QuotationsPage() {
   useEffect(() => {
     if (!showModal || !activeDraftKey || saveLoading) return
 
-    const timeout = window.setTimeout(() => persistActiveQuotationDraft(true), 250)
+    const timeout = window.setTimeout(() => persistActiveQuotationDraft(true), 750)
 
     return () => window.clearTimeout(timeout)
   }, [activeDraftKey, formData, newItem, quotationItems, quotationTerms, saveLoading, showModal])
@@ -2079,7 +2088,9 @@ export default function QuotationsPage() {
         })
 
         if (res.ok) {
-          fetchQuotations()
+          setQuotations((currentQuotations) =>
+            currentQuotations.filter((quotation) => quotation.id !== id),
+          )
         } else {
           console.error('Failed to delete quotation')
         }
@@ -2539,6 +2550,13 @@ export default function QuotationsPage() {
 
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Add Quotation Item</label>
+                {Array.from(quotationDescriptionOptionsByScope, ([scopeKey, descriptions]) => (
+                  <datalist key={scopeKey} id={`quotation-description-options-${scopeKey.replace(/[^a-z0-9]+/g, '-')}`}>
+                    {descriptions.map((description) => (
+                      <option key={description} value={description} />
+                    ))}
+                  </datalist>
+                ))}
                 <div className="grid grid-cols-12 gap-3 items-end mb-4">
                   <div className="col-span-12 sm:col-span-2">
                     <label className="block text-xs font-medium mb-1">Category</label>
@@ -2570,17 +2588,12 @@ export default function QuotationsPage() {
                     <label className="block text-xs font-medium mb-1">Description</label>
                     <input
                       type="text"
-                      list="new-quotation-description-options"
+                      list={getQuotationDescriptionListId(newItem.category, newItem.area)}
                       value={newItem.description}
                       onChange={(e) => handleNewItemChange('description', e.target.value)}
                       placeholder="Select or enter item description"
                       className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black"
                     />
-                    <datalist id="new-quotation-description-options">
-                      {getQuotationDescriptionOptions(newItem.category, newItem.area).map((description) => (
-                        <option key={description} value={description} />
-                      ))}
-                    </datalist>
                   </div>
                   <div className="col-span-6 sm:col-span-1">
                     <label className="block text-xs font-medium mb-1">Qty</label>
@@ -2662,16 +2675,7 @@ export default function QuotationsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(() => {
-                            const grouped = groupQuotationItemsByArea(quotationItems)
-                            const sortedAreas = Object.keys(grouped).sort((a, b) => {
-                              const areaA = Object.keys(ROOM_COLORS).find(k => k.toLowerCase() === a) || a
-                              const areaB = Object.keys(ROOM_COLORS).find(k => k.toLowerCase() === b) || b
-                              return Object.keys(ROOM_COLORS).indexOf(areaA) - Object.keys(ROOM_COLORS).indexOf(areaB)
-                            })
-                            
-                            return sortedAreas.map((areaKey) => {
-                              const items = grouped[areaKey]
+                          {groupedQuotationItems.map(({ areaKey, items }) => {
                               const colors = getRoomColor(areaKey)
                               
                               return (
@@ -2680,15 +2684,11 @@ export default function QuotationsPage() {
                                     <td colSpan={10} className={`px-3 py-2 font-semibold ${colors.text}`}>
                                       <div className={`flex items-center gap-2 py-1`}>
                                         <span className={`inline-block w-3 h-3 rounded-full ${colors.border.replace('border', 'bg')}`}></span>
-                                        {items[0].area ? items[0].area.toUpperCase() : 'FULL FLAT'}
+                                        {items[0].item.area ? items[0].item.area.toUpperCase() : 'FULL FLAT'}
                                       </div>
                                     </td>
                                   </tr>
-                                  {getSortedQuotationItemsWithIndex(items).map(({ item }) => {
-                                    const originalIndex = quotationItems.findIndex(
-                                      (qi) => qi.id === item.id && qi.description === item.description && 
-                                             qi.category === item.category && qi.area === item.area
-                                    )
+                                  {items.map(({ item, originalIndex }) => {
                                     return (
                                       <tr key={`${originalIndex}-${item.id || item.description}`} className={`border-t ${colors.bg}`}>
                                         <td className="px-3 py-2 text-sm">
@@ -2720,16 +2720,11 @@ export default function QuotationsPage() {
                                         <td className="px-3 py-2 text-sm">
                                           <input
                                             type="text"
-                                            list={`quotation-description-options-${originalIndex}`}
+                                            list={getQuotationDescriptionListId(item.category, item.area)}
                                             value={item.description}
                                             onChange={(e) => handleItemChange(originalIndex, 'description', e.target.value)}
                                             className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
                                           />
-                                          <datalist id={`quotation-description-options-${originalIndex}`}>
-                                            {getQuotationDescriptionOptions(item.category, item.area).map((description) => (
-                                              <option key={description} value={description} />
-                                            ))}
-                                          </datalist>
                                         </td>
                                         <td className="px-3 py-2 text-right text-sm">
                                           <input
@@ -2803,8 +2798,7 @@ export default function QuotationsPage() {
                                   })}
                                 </Fragment>
                               )
-                            })
-                          })()}
+                            })}
                         </tbody>
                       </table>
                     </div>

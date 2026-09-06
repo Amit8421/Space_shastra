@@ -73,25 +73,49 @@ export async function PUT(
           // rates are linked to them.
           const existingItems = await tx.quotationItem.findMany({
             where: { quotationId: params.id },
-            select: { id: true },
+            select: {
+              id: true,
+              area: true,
+              category: true,
+              description: true,
+              quantity: true,
+              lengthCm: true,
+              widthCm: true,
+              rate: true,
+              areaSqFt: true,
+              total: true,
+            },
           })
-          const existingItemIds = new Set(existingItems.map((item) => item.id))
+          const existingItemsById = new Map(existingItems.map((item) => [item.id, item]))
           const nextExistingItemIds = new Set<string>()
-          const itemOperations = normalizedItems.map((item) => {
-            if (item.id && existingItemIds.has(item.id)) {
+          const itemOperations = normalizedItems.flatMap((item) => {
+            const existingItem = item.id ? existingItemsById.get(item.id) : null
+            if (item.id && existingItem) {
               nextExistingItemIds.add(item.id)
-              return tx.quotationItem.update({
+              const itemIsUnchanged =
+                existingItem.area === item.data.area &&
+                existingItem.category === item.data.category &&
+                existingItem.description === item.data.description &&
+                Number(existingItem.quantity || 0) === Number(item.data.quantity || 0) &&
+                Number(existingItem.lengthCm || 0) === Number(item.data.lengthCm || 0) &&
+                Number(existingItem.widthCm || 0) === Number(item.data.widthCm || 0) &&
+                Number(existingItem.rate || 0) === Number(item.data.rate || 0) &&
+                Number(existingItem.areaSqFt || 0) === Number(item.data.areaSqFt || 0) &&
+                Number(existingItem.total || 0) === Number(item.data.total || 0)
+
+              if (itemIsUnchanged) return []
+              return [tx.quotationItem.update({
                 where: { id: item.id },
                 data: item.data,
-              })
+              })]
             }
 
-            return tx.quotationItem.create({
+            return [tx.quotationItem.create({
               data: {
                 quotationId: params.id,
                 ...item.data,
               },
-            })
+            })]
           })
 
           await Promise.all(itemOperations)

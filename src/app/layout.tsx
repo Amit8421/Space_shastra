@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
+import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import '../styles/globals.css'
 
@@ -46,13 +47,13 @@ export default function RootLayout({
 
               <div className="-mx-1 overflow-x-auto px-1 pb-1">
                 <ul className="flex min-w-max items-center gap-2 text-sm font-medium sm:min-w-0 sm:flex-wrap sm:gap-3">
-                  <li><a href="/" className={navLinkClass}>Dashboard</a></li>
-                  <li><a href="/clients" className={navLinkClass}>Clients</a></li>
-                  <li><a href="/vendors" className={navLinkClass}>Vendors</a></li>
-                  <li><a href="/projects" className={navLinkClass}>Projects</a></li>
-                  <li><a href="/invoices" className={navLinkClass}>Invoices</a></li>
-                  <li><a href="/quotations" className={navLinkClass}>Quotations</a></li>
-                  <li><a href="/transactions" className={navLinkClass}>Transactions</a></li>
+                  <li><Link href="/" className={navLinkClass}>Dashboard</Link></li>
+                  <li><Link href="/clients" className={navLinkClass}>Clients</Link></li>
+                  <li><Link href="/vendors" className={navLinkClass}>Vendors</Link></li>
+                  <li><Link href="/projects" className={navLinkClass}>Projects</Link></li>
+                  <li><Link href="/invoices" className={navLinkClass}>Invoices</Link></li>
+                  <li><Link href="/quotations" className={navLinkClass}>Quotations</Link></li>
+                  <li><Link href="/transactions" className={navLinkClass}>Transactions</Link></li>
                   <li className="flex"><LogoutButton /></li>
                 </ul>
               </div>
