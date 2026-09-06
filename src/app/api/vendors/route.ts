@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { normalizeTextFields } from '@/lib/text-format'
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const vendors = await prisma.vendor.findMany({
-      orderBy: { createdAt: 'desc' },
-    })
+    const summary = new URL(request.url).searchParams.get('summary') === 'true'
+    const vendors = summary
+      ? await prisma.vendor.findMany({
+          select: { id: true, name: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : await prisma.vendor.findMany({ orderBy: { createdAt: 'desc' } })
     return NextResponse.json(vendors)
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch vendors' }, { status: 500 })

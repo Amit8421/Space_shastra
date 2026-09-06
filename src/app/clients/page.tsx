@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { getNormalizedFieldValue } from '@/lib/text-format'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
-import { getQuotationGrandTotal } from '@/lib/quotation-total'
 
 interface Client {
   id: string
@@ -107,29 +106,24 @@ export default function ClientsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const isEditing = Boolean(editingClient)
       const url = editingClient ? `/api/clients/${editingClient.id}` : '/api/clients'
-      const method = editingClient ? 'PUT' : 'POST'
       const res = await fetchWithAuth(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
       if (res.ok) {
+        const savedClient = await res.json() as Client
+        setClients((currentClients) => isEditing
+          ? currentClients.map((client) => client.id === savedClient.id ? savedClient : client)
+          : [savedClient, ...currentClients])
         setShowModal(false)
         setEditingClient(null)
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          status: 'active'
-        })
-        fetchClients() // Refresh the list
+        setFormData({ firstName: '', lastName: '', email: '', phone: '', status: 'active' })
       } else {
-        console.error(editingClient ? 'Failed to update client' : 'Failed to create client')
+        console.error(isEditing ? 'Failed to update client' : 'Failed to create client')
       }
     } catch (error) {
       console.error('Error saving client:', error)
@@ -151,11 +145,9 @@ export default function ClientsPage() {
   const handleDelete = async (clientId: string) => {
     if (!confirm('Delete this client?')) return
     try {
-      const res = await fetchWithAuth(`/api/clients/${clientId}`, {
-        method: 'DELETE',
-      })
+      const res = await fetchWithAuth(`/api/clients/${clientId}`, { method: 'DELETE' })
       if (res.ok) {
-        fetchClients()
+        setClients((currentClients) => currentClients.filter((client) => client.id !== clientId))
       } else {
         console.error('Failed to delete client')
       }
@@ -171,64 +163,14 @@ export default function ClientsPage() {
     })
   }
 
-  const fetchClientTransactions = async (clientId: string) => {
-    try {
-      const res = await fetchWithAuth(`/api/transactions?clientId=${clientId}`)
-      const data = await res.json()
-      setAccountTransactions(Array.isArray(data) ? data : [])
-    } catch (error) {
-      console.error('Failed to fetch client transactions:', error)
-      setAccountTransactions([])
-    }
-  }
-
-  const fetchClientProjects = async (clientId: string) => {
-    try {
-      const res = await fetchWithAuth('/api/projects')
-      const data = await res.json()
-      const projects = Array.isArray(data) ? data.filter((project: Project) => project.clientId === clientId) : []
-      setClientProjects(projects)
-      return projects
-    } catch (error) {
-      console.error('Failed to fetch client projects:', error)
-      setClientProjects([])
-      return []
-    }
-  }
-
-  const fetchClientAccountSummary = async (clientId: string) => {
-    try {
-      const [quotRes, txRes] = await Promise.all([
-        fetchWithAuth(`/api/quotations?clientId=${clientId}`),
-        fetchWithAuth(`/api/transactions?clientId=${clientId}`),
-      ])
-
-      if (!quotRes.ok || !txRes.ok) {
-        throw new Error('Failed to load client account totals')
-      }
-
-      const [quotData, txData] = await Promise.all([quotRes.json(), txRes.json()])
-      const acceptedTotal = Math.round((Array.isArray(quotData)
-        ? quotData
-            .filter((q: any) => q.status === 'accepted')
-            .reduce((sum: number, q: any) => sum + getQuotationGrandTotal(q), 0)
-        : 0) * 100) / 100
-      const paymentsTotal = Array.isArray(txData)
-        ? txData.filter((t: any) => t.type === 'credit payment' || t.type === 'payment').reduce((sum: number, t: any) => sum + Number(t.amount), 0)
-        : 0
-      const remainingTotal = Math.round((acceptedTotal - paymentsTotal + Number.EPSILON) * 100) / 100
-
-      setAccountSummary({
-        acceptedTotal,
-        paymentsTotal,
-        remainingTotal,
-      })
-
-      return remainingTotal
-    } catch (error) {
-      console.error('Failed to fetch account summary:', error)
-      return null
-    }
+  const fetchClientAccountReport = async (clientId: string) => {
+    const res = await fetchWithAuth(`/api/clients/${clientId}/account-report`)
+    if (!res.ok) throw new Error('Failed to load client account report')
+    const data = await res.json()
+    setClientProjects(Array.isArray(data.projects) ? data.projects : [])
+    setAccountTransactions(Array.isArray(data.transactions) ? data.transactions : [])
+    setAccountSummary(data.summary || { acceptedTotal: 0, paymentsTotal: 0, remainingTotal: 0 })
+    return data
   }
 
   const openAccountModal = async (client: Client) => {
@@ -236,43 +178,23 @@ export default function ClientsPage() {
     setClientProjects([])
     setAccountSummary({ acceptedTotal: 0, paymentsTotal: 0, remainingTotal: 0 })
     setAccountTransactions([])
-    setAccountForm({
-      amount: '',
-      description: '',
-      projectId: '',
-      date: new Date().toISOString().split('T')[0],
-    })
+    setAccountForm({ amount: '', description: '', projectId: '', date: new Date().toISOString().split('T')[0] })
     setAccountLoading(true)
     setAccountModalOpen(true)
 
     try {
-      const [, remainingTotal, projects] = await Promise.all([
-        fetchClientTransactions(client.id),
-        fetchClientAccountSummary(client.id),
-        fetchClientProjects(client.id),
-      ])
-
+      const data = await fetchClientAccountReport(client.id)
+      const projects = Array.isArray(data.projects) ? data.projects : []
       if (projects.length === 1) {
-        setAccountForm((prev) => ({
-          ...prev,
-          projectId: projects[0].id,
-        }))
+        setAccountForm((currentForm) => ({ ...currentForm, projectId: projects[0].id }))
       }
-
-      if (remainingTotal !== null && client.balance !== remainingTotal) {
-        const res = await fetch(`/api/clients/${client.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ balance: remainingTotal }),
-        })
-
-        if (res.ok) {
-          setClients((prev) => prev.map((c) => c.id === client.id ? { ...c, balance: remainingTotal } : c))
-          setAccountClient((prev) => prev ? { ...prev, balance: remainingTotal } : prev)
-        }
-      }
+      const remainingTotal = Number(data.summary?.remainingTotal || 0)
+      setClients((currentClients) => currentClients.map((item) =>
+        item.id === client.id ? { ...item, balance: remainingTotal } : item,
+      ))
+      setAccountClient((currentClient) => currentClient ? { ...currentClient, balance: remainingTotal } : currentClient)
+    } catch (error) {
+      console.error('Failed to load client account:', error)
     } finally {
       setAccountLoading(false)
     }
@@ -287,9 +209,7 @@ export default function ClientsPage() {
     try {
       const res = await fetchWithAuth('/api/transactions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'credit payment',
           clientId: accountClient.id,
@@ -303,9 +223,17 @@ export default function ClientsPage() {
       })
 
       if (res.ok) {
-        await fetchClients(accountClient.id)
-        await fetchClientTransactions(accountClient.id)
-        await fetchClientAccountSummary(accountClient.id)
+        const savedTransaction = await res.json() as Transaction
+        setAccountTransactions((transactions) => [savedTransaction, ...transactions])
+        setAccountSummary((summary) => ({
+          ...summary,
+          paymentsTotal: summary.paymentsTotal + amount,
+          remainingTotal: Math.round((summary.remainingTotal - amount + Number.EPSILON) * 100) / 100,
+        }))
+        setClients((currentClients) => currentClients.map((client) =>
+          client.id === accountClient.id ? { ...client, balance: Number(client.balance || 0) - amount } : client,
+        ))
+        setAccountClient((client) => client ? { ...client, balance: Number(client.balance || 0) - amount } : client)
         setAccountForm({
           amount: '',
           description: '',

@@ -1392,7 +1392,7 @@ export default function QuotationsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clients', { credentials: 'include' })
+      const res = await fetch('/api/clients?summary=true', { credentials: 'include' })
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -1402,7 +1402,7 @@ export default function QuotationsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects', { credentials: 'include' })
+      const res = await fetch('/api/projects?summary=true', { credentials: 'include' })
       const data = await res.json()
       setProjects(data)
     } catch (error) {

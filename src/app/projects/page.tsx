@@ -158,7 +158,7 @@ export default function ProjectsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetchWithAuth('/api/clients')
+      const res = await fetchWithAuth('/api/clients?summary=true')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -169,29 +169,22 @@ export default function ProjectsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const isEditing = Boolean(editingProject)
       const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
-      const method = editingProject ? 'PUT' : 'POST'
-
       const res = await fetchWithAuth(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
       if (res.ok) {
+        const savedProject = await res.json() as Project
+        setProjects((currentProjects) => isEditing
+          ? currentProjects.map((project) => project.id === savedProject.id ? savedProject : project)
+          : [savedProject, ...currentProjects])
         setShowModal(false)
         setEditingProject(null)
-        setFormData({
-          name: '',
-          description: '',
-          clientId: '',
-          address: '',
-          city: '',
-          status: 'active'
-        })
-        fetchProjects()
+        setFormData({ name: '', description: '', clientId: '', address: '', city: '', status: 'active' })
       } else {
         console.error('Failed to save project')
       }
@@ -214,20 +207,16 @@ export default function ProjectsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this project?')) {
-      try {
-        const res = await fetchWithAuth(`/api/projects/${id}`, {
-          method: 'DELETE',
-        })
-
-        if (res.ok) {
-          fetchProjects()
-        } else {
-          console.error('Failed to delete project')
-        }
-      } catch (error) {
-        console.error('Error deleting project:', error)
+    if (!confirm('Are you sure you want to delete this project?')) return
+    try {
+      const res = await fetchWithAuth(`/api/projects/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setProjects((currentProjects) => currentProjects.filter((project) => project.id !== id))
+      } else {
+        console.error('Failed to delete project')
       }
+    } catch (error) {
+      console.error('Error deleting project:', error)
     }
   }
 

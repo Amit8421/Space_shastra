@@ -45,6 +45,7 @@ interface VendorAccount {
   notes?: string
   project: Project
   furnitureItems: VendorAccountFurnitureItem[]
+  vendor?: Vendor
 }
 
 interface VendorAccountEntry {
@@ -149,7 +150,7 @@ export default function VendorsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetchWithAuth('/api/projects')
+      const res = await fetchWithAuth('/api/projects?summary=true')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -234,7 +235,10 @@ export default function VendorsPage() {
           category: '',
           status: 'active'
         })
-        fetchVendors() // Refresh the list
+        const savedVendor = await res.json() as Vendor
+        setVendors((currentVendors) => editingVendor
+          ? currentVendors.map((vendor) => vendor.id === savedVendor.id ? savedVendor : vendor)
+          : [savedVendor, ...currentVendors])
       } else {
         console.error('Failed to save vendor')
       }
@@ -263,7 +267,7 @@ export default function VendorsPage() {
         })
 
         if (res.ok) {
-          fetchVendors() // Refresh the list
+          setVendors((currentVendors) => currentVendors.filter((vendor) => vendor.id !== id))
         } else {
           console.error('Failed to delete vendor')
         }
@@ -354,7 +358,7 @@ export default function VendorsPage() {
       if (res.ok) {
         const createdAccount = await res.json()
         setProjectFilter(accountForm.projectId)
-        await fetchVendorAccounts(selectedVendor.id, accountForm.projectId)
+        setVendorAccounts([createdAccount])
         setAccountForm({ projectId: '', openingBalance: '0', notes: '', status: 'active' })
         setSelectedAccountId(createdAccount.id)
         setAccountError('')
@@ -398,10 +402,16 @@ export default function VendorsPage() {
       })
 
       if (res.ok) {
-        fetchVendorEntries(selectedAccountId)
+        const savedEntry = await res.json() as VendorAccountEntry
+        const balanceDelta = savedEntry.type === 'payment' ? -Number(savedEntry.amount) : Number(savedEntry.amount)
+        setVendorEntries((entries) => [savedEntry, ...entries])
+        setVendorAccounts((accounts) => accounts.map((account) => account.id === selectedAccountId
+          ? { ...account, currentBalance: Number(account.currentBalance) + balanceDelta }
+          : account))
         if (selectedVendor) {
-          fetchVendorAccounts(selectedVendor.id, projectFilter)
-          fetchVendors()
+          setVendors((currentVendors) => currentVendors.map((vendor) => vendor.id === selectedVendor.id
+            ? { ...vendor, balance: Number(vendor.balance || 0) + balanceDelta }
+            : vendor))
         }
         setEntryForm({ type: 'payment', amount: '', description: '', date: new Date().toISOString().split('T')[0] })
       } else {
@@ -450,9 +460,15 @@ export default function VendorsPage() {
 
       if (res.ok) {
         const updatedAccount = await res.json()
-        await fetchVendorAccounts(selectedVendor.id, projectFilter)
+        setVendorAccounts((accounts) => accounts.map((account) =>
+          account.id === updatedAccount.id ? updatedAccount : account,
+        ))
         setSelectedAccountId(updatedAccount.id)
-        fetchVendors()
+        if (updatedAccount.vendor) {
+          setVendors((currentVendors) => currentVendors.map((vendor) =>
+            vendor.id === updatedAccount.vendor?.id ? updatedAccount.vendor : vendor,
+          ))
+        }
         setEditingAccount(false)
         setAccountError('')
         setAccountSuccess('Vendor project account updated successfully.')

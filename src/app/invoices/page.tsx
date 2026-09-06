@@ -82,7 +82,7 @@ export default function InvoicesPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetchWithAuth('/api/clients')
+      const res = await fetchWithAuth('/api/clients?summary=true')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -92,7 +92,7 @@ export default function InvoicesPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetchWithAuth('/api/projects')
+      const res = await fetchWithAuth('/api/projects?summary=true')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -185,7 +185,10 @@ export default function InvoicesPage() {
           status: 'pending'
         })
         setInvoiceItems([{ description: '', quantity: '1', unitPrice: '0', total: 0 }])
-        fetchInvoices() // Refresh the list
+        const savedInvoice = await res.json() as Invoice
+        setInvoices((currentInvoices) => editingInvoice
+          ? currentInvoices.map((invoice) => invoice.id === savedInvoice.id ? savedInvoice : invoice)
+          : [savedInvoice, ...currentInvoices])
       } else {
         console.error('Failed to save invoice')
       }
@@ -222,7 +225,7 @@ export default function InvoicesPage() {
         })
 
         if (res.ok) {
-          fetchInvoices() // Refresh the list
+          setInvoices((currentInvoices) => currentInvoices.filter((invoice) => invoice.id !== id))
         } else {
           console.error('Failed to delete invoice')
         }

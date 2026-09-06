@@ -8,56 +8,32 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const vendorId = searchParams.get('vendorId')
     const projectId = searchParams.get('projectId')
-
-    const where: any = {}
+    const summary = searchParams.get('summary') === 'true'
+    const where: { vendorId?: string; projectId?: string } = {}
     if (vendorId) where.vendorId = vendorId
     if (projectId) where.projectId = projectId
 
-    let accounts = await prisma.vendorAccount.findMany({
-      where,
-      include: {
-        vendor: true,
-        project: true,
-        furnitureItems: {
-          orderBy: [
-            { area: 'asc' },
-            { description: 'asc' },
-          ],
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    })
-
-    const furnitureProjectIds = Array.from(
-      new Set(
-        accounts
-          .filter((account) => account.vendor.category?.trim().toLowerCase() === 'furniture')
-          .map((account) => account.projectId),
-      ),
-    )
-
-    if (furnitureProjectIds.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        for (const syncedProjectId of furnitureProjectIds) {
-          await syncFurnitureVendorAccountsForProject(tx, syncedProjectId)
-        }
-      })
-
-      accounts = await prisma.vendorAccount.findMany({
-        where,
-        include: {
-          vendor: true,
-          project: true,
-          furnitureItems: {
-            orderBy: [
-              { area: 'asc' },
-              { description: 'asc' },
-            ],
+    const accounts = summary
+      ? await prisma.vendorAccount.findMany({
+          where,
+          select: {
+            id: true,
+            projectId: true,
+            status: true,
+            project: { select: { id: true, name: true } },
           },
-        },
-        orderBy: { updatedAt: 'desc' },
-      })
-    }
+          orderBy: { updatedAt: 'desc' },
+        })
+      : await prisma.vendorAccount.findMany({
+          where,
+          include: {
+            project: true,
+            furnitureItems: {
+              orderBy: [{ area: 'asc' }, { description: 'asc' }],
+            },
+          },
+          orderBy: { updatedAt: 'desc' },
+        })
 
     return NextResponse.json(accounts)
   } catch (error) {

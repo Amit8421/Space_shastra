@@ -104,7 +104,16 @@ export async function GET(request: NextRequest) {
 
     const transactions = await prisma.transaction.findMany({
       where: clientId ? { clientId } : {},
-      include: { vendor: true, project: true, client: true },
+      select: {
+        id: true,
+        type: true,
+        description: true,
+        amount: true,
+        date: true,
+        vendor: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+        client: { select: { id: true, firstName: true, lastName: true } },
+      },
       orderBy: { date: 'desc' },
     })
     return NextResponse.json(transactions)

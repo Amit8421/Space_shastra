@@ -27,7 +27,7 @@ export async function PUT(
     const invoice = await prisma.invoice.update({
       where: { id: params.id },
       data,
-      include: { client: true, project: true, items: true, payments: true },
+      include: { client: true, project: true, items: true },
     })
     return NextResponse.json(invoice)
   } catch (error) {

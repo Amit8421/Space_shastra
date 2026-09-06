@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     const invoices = await prisma.invoice.findMany({
       where: clientId ? { clientId } : {},
-      include: { client: true, project: true, items: true, payments: true },
+      include: { client: true, project: true, items: true },
       orderBy: { issueDate: 'desc' },
     })
     return NextResponse.json(invoices)
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
           create: items,
         },
       },
-      include: { client: true, project: true, items: true, payments: true },
+      include: { client: true, project: true, items: true },
     })
     return NextResponse.json(invoice, { status: 201 })
   } catch (error) {

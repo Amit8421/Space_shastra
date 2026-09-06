@@ -89,7 +89,7 @@ export default function TransactionsPage() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetchWithAuth('/api/vendors')
+      const res = await fetchWithAuth('/api/vendors?summary=true')
       const data = await res.json()
       setVendors(data)
     } catch (error) {
@@ -99,7 +99,7 @@ export default function TransactionsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetchWithAuth('/api/projects')
+      const res = await fetchWithAuth('/api/projects?summary=true')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -109,7 +109,7 @@ export default function TransactionsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetchWithAuth('/api/clients')
+      const res = await fetchWithAuth('/api/clients?summary=true')
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -124,7 +124,7 @@ export default function TransactionsPage() {
     }
 
     try {
-      const res = await fetchWithAuth(`/api/vendorAccounts?vendorId=${vendorId}`)
+      const res = await fetchWithAuth(`/api/vendorAccounts?vendorId=${vendorId}&summary=true`)
       const data = await res.json()
       setVendorAccounts(Array.isArray(data) ? data : [])
     } catch (error) {
@@ -182,7 +182,10 @@ export default function TransactionsPage() {
           date: new Date().toISOString().split('T')[0]
         })
         setVendorAccounts([])
-        fetchTransactions() // Refresh the list
+        const savedTransaction = await res.json() as Transaction
+        setTransactions((currentTransactions) => editingTransaction
+          ? currentTransactions.map((transaction) => transaction.id === savedTransaction.id ? savedTransaction : transaction)
+          : [savedTransaction, ...currentTransactions])
       } else {
         console.error('Failed to save transaction')
       }
@@ -213,7 +216,7 @@ export default function TransactionsPage() {
         })
 
         if (res.ok) {
-          fetchTransactions() // Refresh the list
+          setTransactions((currentTransactions) => currentTransactions.filter((transaction) => transaction.id !== id))
         } else {
           console.error('Failed to delete transaction')
         }

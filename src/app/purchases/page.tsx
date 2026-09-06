@@ -15,6 +15,10 @@ interface Purchase {
   project: {
     name: string
   }
+  vendorId: string
+  projectId: string
+  items: string
+  notes?: string
 }
 
 interface Vendor {
@@ -64,7 +68,7 @@ export default function PurchasesPage() {
 
   const fetchVendors = async () => {
     try {
-      const res = await fetchWithAuth('/api/vendors')
+      const res = await fetchWithAuth('/api/vendors?summary=true')
       const data = await res.json()
       setVendors(data)
     } catch (error) {
@@ -74,7 +78,7 @@ export default function PurchasesPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetchWithAuth('/api/projects')
+      const res = await fetchWithAuth('/api/projects?summary=true')
       const data = await res.json()
       setProjects(data)
     } catch (error) {
@@ -114,7 +118,10 @@ export default function PurchasesPage() {
           status: 'pending',
           notes: ''
         })
-        fetchPurchases() // Refresh the list
+        const savedPurchase = await res.json() as Purchase
+        setPurchases((currentPurchases) => editingPurchase
+          ? currentPurchases.map((purchase) => purchase.id === savedPurchase.id ? savedPurchase : purchase)
+          : [savedPurchase, ...currentPurchases])
       } else {
         console.error('Failed to save purchase')
       }
@@ -127,12 +134,12 @@ export default function PurchasesPage() {
     setEditingPurchase(purchase)
     setFormData({
       purchaseNo: purchase.purchaseNo,
-      vendorId: '', // Would need to get from purchase data
-      projectId: '', // Would need to get from purchase data
-      items: '', // Would need to get from purchase data
+      vendorId: purchase.vendorId,
+      projectId: purchase.projectId,
+      items: purchase.items,
       amount: purchase.amount.toString(),
       status: purchase.status,
-      notes: '' // Would need to get from purchase data
+      notes: purchase.notes || ''
     })
     setShowModal(true)
   }
@@ -145,7 +152,7 @@ export default function PurchasesPage() {
         })
 
         if (res.ok) {
-          fetchPurchases() // Refresh the list
+          setPurchases((currentPurchases) => currentPurchases.filter((purchase) => purchase.id !== id))
         } else {
           console.error('Failed to delete purchase')
         }

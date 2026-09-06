@@ -61,6 +61,7 @@ async function applyFurnitureOpeningBalance(
 ) {
   const roundedOpeningBalance = Number(nextOpeningBalance.toFixed(2))
   const delta = Number((roundedOpeningBalance - Number(account.openingBalance || 0)).toFixed(2))
+  if (delta === 0) return
 
   await tx.vendorAccount.update({
     where: { id: account.id },
@@ -244,30 +245,27 @@ export async function updateFurnitureVendorRates(
   const updatesById = new Map(
     furnitureItems.map((item) => [item.id, Number(item.vendorRate || 0)]),
   )
+  const updateOperations = []
+  let nextOpeningBalance = 0
 
   for (const item of account.furnitureItems) {
-    if (!updatesById.has(item.id)) continue
-
-    const vendorRate = updatesById.get(item.id) || 0
+    const vendorRate = updatesById.has(item.id)
+      ? updatesById.get(item.id) || 0
+      : Number(item.vendorRate || 0)
     const vendorTotal = calculateVendorTotal(item, vendorRate)
+    nextOpeningBalance += vendorTotal
 
-    await tx.vendorAccountFurnitureItem.update({
-      where: { id: item.id },
-      data: {
-        vendorRate,
-        vendorTotal,
-      },
-    })
+    if (
+      updatesById.has(item.id) &&
+      (Number(item.vendorRate || 0) !== vendorRate || Number(item.vendorTotal || 0) !== vendorTotal)
+    ) {
+      updateOperations.push(tx.vendorAccountFurnitureItem.update({
+        where: { id: item.id },
+        data: { vendorRate, vendorTotal },
+      }))
+    }
   }
 
-  const refreshedFurnitureItems = await tx.vendorAccountFurnitureItem.findMany({
-    where: { vendorAccountId: accountId },
-  })
-
-  const nextOpeningBalance = refreshedFurnitureItems.reduce(
-    (sum, item) => sum + Number(item.vendorTotal || 0),
-    0,
-  )
-
+  await Promise.all(updateOperations)
   await applyFurnitureOpeningBalance(tx, account, nextOpeningBalance)
 }
