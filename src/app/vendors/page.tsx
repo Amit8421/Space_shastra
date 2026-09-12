@@ -918,6 +918,7 @@ export default function VendorsPage() {
                   <option value="plumbing">Plumbing</option>
                   <option value="electrical">Electrical</option>
                   <option value="other">Other</option>
+                  <option value={'pop'}>POP</option>
                 </select>
               </div>
               <div className="mb-4">
