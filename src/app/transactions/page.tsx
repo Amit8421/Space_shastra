@@ -260,8 +260,8 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="py-12">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-w-0 py-6 sm:py-12">
+      <div className="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold">Transactions</h2>
         <button 
           onClick={openAddModal}
@@ -273,8 +273,8 @@ export default function TransactionsPage() {
 
       {/* Add/Edit Transaction Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4 sm:items-center">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-xl font-bold mb-4">{editingTransaction ? 'Edit Transaction' : 'Add New Transaction'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -406,7 +406,7 @@ export default function TransactionsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -433,8 +433,8 @@ export default function TransactionsPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="max-w-full overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[820px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Type</th>

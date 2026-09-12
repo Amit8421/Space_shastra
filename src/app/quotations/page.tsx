@@ -2182,7 +2182,7 @@ export default function QuotationsPage() {
   }
 
   return (
-    <div className="py-12">
+    <div className="min-w-0 py-6 sm:py-12">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold">Quotations</h2>
@@ -2224,10 +2224,10 @@ export default function QuotationsPage() {
       )}
 
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
-            <div className="border-b border-gray-200 px-6 py-4">
-            <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+          <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+            <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
               <div>
                 <h3 className="text-xl font-bold">{importMode === 'pdf' ? 'PDF Import' : 'Import Quotation'}</h3>
                 <p className="text-sm text-gray-600">
@@ -2246,7 +2246,7 @@ export default function QuotationsPage() {
             </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <form onSubmit={handleImportFileSubmit} className="space-y-4">
               <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
                 <label className="block text-sm font-medium text-gray-800">Quotation File</label>
@@ -2980,15 +2980,15 @@ export default function QuotationsPage() {
         const noteLines = getQuotationNoteLines(viewingQuotation.notes)
 
         return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-[28px] bg-white shadow-[0_28px_80px_rgba(18,13,6,0.35)]">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#b7cade] bg-white px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:items-center sm:p-4">
+          <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-x-hidden overflow-y-auto rounded-2xl bg-white shadow-[0_28px_80px_rgba(18,13,6,0.35)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px]">
+            <div className="sticky top-0 z-10 flex flex-col items-start justify-between gap-3 border-b border-[#b7cade] bg-white px-4 py-4 sm:flex-row sm:items-center sm:px-6">
               <div>
                 <p className="text-xs font-semibold tracking-[0.28em] text-[#37658f]">{COMPANY_DETAILS.title}</p>
                 <h2 className="text-2xl font-bold text-gray-900">Quotation Report</h2>
                 <p className="text-sm text-gray-600">Quotation #{viewingQuotation.quotationNo}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <button
                   type="button"
                   onClick={handlePrintQuotation}

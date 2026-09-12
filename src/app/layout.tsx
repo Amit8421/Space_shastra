@@ -19,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-[linear-gradient(180deg,#f6f8fc_0%,#eef2f8_100%)] text-slate-900">
+      <body className="min-h-[100dvh] overflow-x-hidden bg-[linear-gradient(180deg,#f6f8fc_0%,#eef2f8_100%)] text-slate-900">
         <nav className="border-b border-[#243957] bg-[linear-gradient(135deg,#0f1c2f_0%,#182844_48%,#264264_100%)] text-white shadow-[0_18px_36px_rgba(10,20,36,0.28)]">
           <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:py-6 md:px-6">
             <div className="flex min-w-0 flex-col gap-5">

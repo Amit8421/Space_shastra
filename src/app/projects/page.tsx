@@ -539,8 +539,8 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="py-12">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-w-0 py-6 sm:py-12">
+      <div className="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold">Projects/Sites</h2>
         <button
           onClick={openAddModal}
@@ -551,8 +551,8 @@ export default function ProjectsPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4 sm:items-center">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-xl font-bold mb-4">{editingProject ? 'Edit Project' : 'Add New Project'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -627,7 +627,7 @@ export default function ProjectsPage() {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -648,16 +648,16 @@ export default function ProjectsPage() {
       )}
 
       {showAccountModal && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black bg-opacity-50 py-10">
-          <div className="w-full max-w-6xl rounded-lg bg-white p-6">
-            <div className="mb-4 flex items-start justify-between">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-6xl rounded-lg bg-white p-4 shadow-xl sm:p-6">
+            <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
               <div>
                 <h3 className="text-xl font-bold">Project Account Report</h3>
                 <p className="text-sm text-gray-600">
                   {accountReport ? `${accountReport.project.name} - ${accountReport.project.client.firstName} ${accountReport.project.client.lastName}` : 'Loading project report...'}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={printAccountReport}
@@ -744,7 +744,7 @@ export default function ProjectsPage() {
                     <p className="text-sm text-gray-600">No accepted quotations linked to this project yet.</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[560px]">
                         <thead className="bg-gray-100">
                           <tr>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Quotation No</th>
@@ -775,7 +775,7 @@ export default function ProjectsPage() {
                     <p className="text-sm text-gray-600">No client payments recorded against this project yet.</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full">
+                      <table className="w-full min-w-[560px]">
                         <thead className="bg-gray-100">
                           <tr>
                             <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Date</th>
@@ -882,7 +882,7 @@ export default function ProjectsPage() {
                             <p className="text-sm text-gray-600">No vendor entries recorded.</p>
                           ) : (
                             <div className="overflow-x-auto">
-                              <table className="w-full">
+                              <table className="w-full min-w-[620px]">
                                 <thead className="bg-gray-100">
                                   <tr>
                                     <th className="px-3 py-2 text-left text-sm font-medium text-gray-900">Date</th>
@@ -918,8 +918,8 @@ export default function ProjectsPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="max-w-full overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[760px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Name</th>

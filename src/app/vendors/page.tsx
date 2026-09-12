@@ -854,8 +854,8 @@ export default function VendorsPage() {
   }
 
   return (
-    <div className="py-12">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-w-0 py-6 sm:py-12">
+      <div className="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold">Vendors</h2>
         <button 
           onClick={openAddModal}
@@ -867,8 +867,8 @@ export default function VendorsPage() {
 
       {/* Add/Edit Vendor Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4 sm:items-center">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-xl font-bold mb-4">{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -933,7 +933,7 @@ export default function VendorsPage() {
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -954,9 +954,9 @@ export default function VendorsPage() {
       )}
 
       {showAccountModal && selectedVendor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-auto py-10">
-          <div className="bg-white p-6 rounded-lg w-full max-w-4xl">
-            <div className="flex items-start justify-between mb-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-4xl rounded-lg bg-white p-4 shadow-xl sm:p-6">
+            <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
               <div>
                 <h3 className="text-xl font-bold">Vendor Accounts</h3>
                 <p className="text-sm text-gray-600">{selectedVendor.name}</p>
@@ -1115,7 +1115,7 @@ export default function VendorsPage() {
                       </p>
                     ) : (
                       <div className="overflow-x-auto rounded-lg border border-amber-200 bg-white">
-                        <table className="min-w-full text-sm">
+                        <table className="min-w-[900px] text-sm">
                           <thead className="bg-amber-100 text-left text-amber-950">
                             <tr>
                               <th className="px-3 py-2 font-medium">Area</th>
@@ -1354,8 +1354,8 @@ export default function VendorsPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="max-w-full overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[820px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Name</th>

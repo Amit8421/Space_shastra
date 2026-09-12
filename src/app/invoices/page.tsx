@@ -256,8 +256,8 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="py-12">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-w-0 py-6 sm:py-12">
+      <div className="mb-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold">Invoices</h2>
         <button 
           onClick={openAddModal}
@@ -269,8 +269,8 @@ export default function InvoicesPage() {
 
       {/* Add/Edit Invoice Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4 sm:items-center">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-xl font-bold mb-4">{editingInvoice ? 'Edit Invoice' : 'Create New Invoice'}</h3>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
@@ -418,7 +418,7 @@ export default function InvoicesPage() {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
-              <div className="flex justify-end space-x-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -439,8 +439,8 @@ export default function InvoicesPage() {
       )}
 
       {viewingInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-3xl overflow-y-auto max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black bg-opacity-50 p-4 sm:items-center">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Space Shastra Interiors</p>
@@ -474,7 +474,7 @@ export default function InvoicesPage() {
               </div>
             </div>
             <div className="overflow-x-auto mb-6">
-              <table className="w-full border border-gray-200">
+              <table className="w-full min-w-[620px] border border-gray-200">
                 <thead className="bg-black text-white">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm">Description</th>
@@ -512,8 +512,8 @@ export default function InvoicesPage() {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="max-w-full overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[760px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Invoice #</th>
