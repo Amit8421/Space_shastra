@@ -55,6 +55,7 @@ export default function TransactionsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [vendorAccounts, setVendorAccounts] = useState<VendorAccount[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [formData, setFormData] = useState({
@@ -144,11 +145,14 @@ export default function TransactionsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     if (isVendorPayment && !formData.projectId) {
       console.error('Project account is required for vendor payments')
       return
     }
 
+    setIsSubmitting(true)
     try {
       const url = editingTransaction ? `/api/transactions/${editingTransaction.id}` : '/api/transactions'
       const method = editingTransaction ? 'PUT' : 'POST'
@@ -191,6 +195,8 @@ export default function TransactionsPage() {
       }
     } catch (error) {
       console.error('Error saving transaction:', error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -411,8 +417,12 @@ export default function TransactionsPage() {
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  disabled={isSubmitting}
+                  aria-busy={isSubmitting}
                 >
-                  {editingTransaction ? 'Update Transaction' : 'Add Transaction'}
+                  {isSubmitting
+                    ? (editingTransaction ? 'Updating…' : 'Adding…')
+                    : (editingTransaction ? 'Update Transaction' : 'Add Transaction')}
                 </button>
               </div>
             </form>

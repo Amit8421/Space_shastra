@@ -21,46 +21,57 @@ async function syncVendorAccountFromTransaction(tx: any, payload: {
   const entryType = getVendorEntryType(payload.type)
   if (!entryType) return
 
-  let account = await tx.vendorAccount.findUnique({
-    where: {
-      vendorId_projectId: {
-        vendorId: payload.vendorId,
-        projectId: payload.projectId,
-      },
+  const balanceChange = entryType === 'payment'
+    ? { decrement: payload.amount }
+    : { increment: payload.amount }
+  const accountWhere = {
+    vendorId_projectId: {
+      vendorId: payload.vendorId,
+      projectId: payload.projectId,
     },
-  })
+  }
+  const entryData = {
+    type: entryType,
+    amount: payload.amount,
+    description: payload.description || '',
+    date: payload.date,
+  }
 
-  if (!account) {
-    account = await tx.vendorAccount.create({
-      data: {
+  if (entryType === 'payment') {
+    try {
+      await tx.vendorAccount.update({
+        where: accountWhere,
+        data: {
+          currentBalance: balanceChange,
+          entries: { create: entryData },
+        },
+        select: { id: true },
+      })
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+        throw new Error('VENDOR_PROJECT_ACCOUNT_NOT_FOUND')
+      }
+      throw error
+    }
+  } else {
+    await tx.vendorAccount.upsert({
+      where: accountWhere,
+      create: {
         vendorId: payload.vendorId,
         projectId: payload.projectId,
         openingBalance: 0,
-        currentBalance: 0,
+        currentBalance: payload.amount,
         status: 'active',
         notes: 'Auto-created from transaction entry',
+        entries: { create: entryData },
       },
+      update: {
+        currentBalance: balanceChange,
+        entries: { create: entryData },
+      },
+      select: { id: true },
     })
   }
-
-  await tx.vendorAccountEntry.create({
-    data: {
-      vendorAccountId: account.id,
-      type: entryType,
-      amount: payload.amount,
-      description: payload.description || '',
-      date: payload.date,
-    },
-  })
-
-  await tx.vendorAccount.update({
-    where: { id: account.id },
-    data: {
-      currentBalance: entryType === 'payment'
-        ? { decrement: payload.amount }
-        : { increment: payload.amount },
-    },
-  })
 
   await tx.vendor.update({
     where: { id: payload.vendorId },
@@ -70,31 +81,6 @@ async function syncVendorAccountFromTransaction(tx: any, payload: {
         : { increment: payload.amount },
     },
   })
-}
-
-async function validateVendorProjectAccount(vendorId?: string | null, projectId?: string | null) {
-  if (!vendorId) {
-    return null
-  }
-
-  if (!projectId) {
-    return 'Project is required for vendor-linked payments.'
-  }
-
-  const vendorAccount = await prisma.vendorAccount.findUnique({
-    where: {
-      vendorId_projectId: {
-        vendorId,
-        projectId,
-      },
-    },
-  })
-
-  if (!vendorAccount) {
-    return 'No vendor project account exists for this vendor and project.'
-  }
-
-  return null
 }
 
 export async function GET(request: NextRequest) {
@@ -128,10 +114,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const normalizedBody = normalizeTextFields(body, ['description', 'notes'])
     if (normalizedBody.type === 'payment' && normalizedBody.vendorId && !normalizedBody.projectId) {
-      const vendorPaymentError = await validateVendorProjectAccount(normalizedBody.vendorId, normalizedBody.projectId)
-      if (vendorPaymentError) {
-        return NextResponse.json({ error: vendorPaymentError }, { status: 400 })
-      }
+      return NextResponse.json({ error: 'Project is required for vendor-linked payments.' }, { status: 400 })
     }
 
     const transactionData: any = {
@@ -156,7 +139,16 @@ export async function POST(request: NextRequest) {
     const transaction = await prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.transaction.create({
         data: transactionData,
-        include: { vendor: true, project: true, client: true },
+        select: {
+          id: true,
+          type: true,
+          description: true,
+          amount: true,
+          date: true,
+          vendor: { select: { id: true, name: true } },
+          project: { select: { id: true, name: true } },
+          client: { select: { id: true, firstName: true, lastName: true } },
+        },
       })
 
       await syncVendorAccountFromTransaction(tx, {
@@ -185,6 +177,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
     console.error('Transactions POST error:', error)
+    if (error instanceof Error && error.message === 'VENDOR_PROJECT_ACCOUNT_NOT_FOUND') {
+      return NextResponse.json({ error: 'No vendor project account exists for this vendor and project.' }, { status: 400 })
+    }
     return NextResponse.json({ error: 'Failed to create transaction', details: String(error) }, { status: 500 })
   }
 }
